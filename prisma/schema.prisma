@@ -13,29 +13,67 @@ datasource db {
 }
 
 model Project {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
   name        String
-  description String // what the user typed in
+  description String
 
-  // Generated outputs — stored as JSON so you can iterate on the shape freely
-  techStack    Json?
-  schema       Json? // DB schema + Prisma models
-  timeline     Json? // phases, milestones
-  architecture Json? // Mermaid diagram code
-  erd          Json? // ERD diagram code
-  apiStructure Json? // endpoints, methods, descriptions
-  tasks        Json? // user stories / kanban cards
+  diagrams    Diagram[]
+  documents   Document[]
 
-  status ProjectStatus @default(PENDING)
+  status    ProjectStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type      DocumentType
+  title     String
+  content   String       // Markdown — easy to copy into Notion/Docusaurus/GitHub
+
+  order     Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+model Diagram {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type      DiagramType
+  title     String
+  content   String
+
+  order     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum DocumentType {
+  OVERVIEW       // project summary + goals
+  TECH_STACK     // stack choices + rationale
+  TIMELINE       // phases + milestones
+  API_STRUCTURE  // endpoints + descriptions
+  TASKS          // user stories / breakdown
+}
+
+enum DiagramType {
+  ARCHITECTURE
+  ERD
+  SEQUENCE
+  FLOWCHART
+}
+
 enum ProjectStatus {
-  PENDING // just created, not generated yet
-  GENERATING // Modal is working on it
-  COMPLETE // all sections generated
-  FAILED // something went wrong
+  PENDING
+  GENERATING
+  COMPLETE
+  FAILED
 }
