@@ -3,6 +3,9 @@
 import PageHeader from "@/components/page-header";
 import { Loader2 } from "lucide-react";
 import { useProject } from "@/trpc/hooks/use-projects";
+import ProjectContentPanel from "@/features/projects/components/project-content-panel";
+import ProjectChatPanel from "@/features/projects/components/project-chat-panel";
+import ProjectSidePanel from "@/features/projects/components/project-side-panel";
 
 interface ProjectDetailsViewProps {
   projectId: string;
@@ -20,35 +23,25 @@ export default function ProjectDetailsView({
     project.status === "GENERATING" || project.status === "PENDING";
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col flex-1 min-h-0">
       <PageHeader title={project.name} />
-      <div className="p-4 lg:p-6 space-y-6">
-        {isGenerating && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Generating your project blueprint...
+      {isGenerating && (
+        <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground border-b bg-muted/30">
+          <Loader2 className="size-3.5 animate-spin" />
+          Generating your project blueprint...
+        </div>
+      )}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Left — content + chat */}
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
+          <div className="relative flex-1 min-h-0">
+            <ProjectContentPanel project={project} />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background from-5% to-transparent" />
           </div>
-        )}
-
-        <p className="text-sm text-muted-foreground">{project.description}</p>
-
-        {project.documents.map((doc) => (
-          <div key={doc.id} className="space-y-2">
-            <h2 className="text-base font-semibold">{doc.title}</h2>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {doc.content}
-            </p>
-          </div>
-        ))}
-
-        {project.diagrams.map((diagram) => (
-          <div key={diagram.id} className="space-y-2">
-            <h2 className="text-base font-semibold">{diagram.title}</h2>
-            <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto">
-              {diagram.content}
-            </pre>
-          </div>
-        ))}
+          <ProjectChatPanel />
+        </div>
+        {/* Right — side panel */}
+        <ProjectSidePanel project={project} />
       </div>
     </div>
   );
