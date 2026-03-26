@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/client";
 
-const spaceGrotesk = Space_Grotesk({
+const montserrat = Montserrat({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -40,7 +40,7 @@ export default function RootLayout({
       <TRPCReactProvider>
         <html
           lang="en"
-          className={`${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
+          className={`${montserrat.variable} ${geistMono.variable} h-full antialiased`}
           suppressHydrationWarning
         >
           <body className="min-h-full flex flex-col">

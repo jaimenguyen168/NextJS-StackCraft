@@ -1,24 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const DashboardInputPanel = () => {
   const [text, setText] = useState("");
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    if (prompt) setText(decodeURIComponent(prompt));
+  }, [searchParams]);
 
   const create = useMutation(
     trpc.projects.create.mutationOptions({
-      onSuccess: (project) => {
+      onSuccess: async (project) => {
         queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+
+        // Navigate immediately
         router.push(`/projects/${project.id}`);
+
+        // Fire generation in background
+        fetch("/api/projects/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: project.id }),
+        });
       },
     }),
   );
