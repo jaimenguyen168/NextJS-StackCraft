@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
+import { DiagramType, DocumentType } from "@/generated/prisma/enums";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
@@ -105,13 +106,15 @@ async function generateDocument(
 ) {
   const { text } = await generateText({
     model,
+    system:
+      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
     prompt: `${documentPrompts[type]}${description}`,
   });
 
   await prisma.document.create({
     data: {
       projectId,
-      type: type as any,
+      type: type as DocumentType,
       title: documentTitles[type],
       content: text.trim(),
       order,
@@ -133,7 +136,7 @@ async function generateDiagram(
   await prisma.diagram.create({
     data: {
       projectId,
-      type: type as any,
+      type: type as DiagramType,
       title: diagramTitles[type],
       content: text.trim(),
       order,

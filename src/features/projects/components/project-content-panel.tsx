@@ -1,6 +1,9 @@
 "use client";
 
-import { FileTextIcon } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { SparklesIcon } from "lucide-react";
+import MermaidDiagram from "@/components/mermaid-diagram";
 
 interface ProjectContentPanelProps {
   project: {
@@ -14,25 +17,26 @@ export default function ProjectContentPanel({
   project,
 }: ProjectContentPanelProps) {
   return (
-    <div className="absolute inset-0 overflow-y-auto p-4 lg:p-6 space-y-6">
-      {/* Placeholder content area */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <FileTextIcon className="size-4" />
-        <span>Project content will render here</span>
+    <div className="absolute inset-0 overflow-y-auto p-4 lg:p-6 space-y-8">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="p-3 rounded-lg bg-muted">
+          <SparklesIcon className="size-4" />
+        </div>
+        <span>{project.description}</span>
       </div>
-
-      <p className="text-sm text-muted-foreground">{project.description}</p>
 
       {project.documents.map((doc) => (
         <div
           key={doc.id}
           id={`doc-${doc.id}`}
-          className="space-y-2 scroll-mt-4"
+          className="space-y-3 scroll-mt-4"
         >
-          <h2 className="text-base font-semibold">{doc.title}</h2>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {doc.content}
-          </p>
+          <h2 className="text-base font-semibold border-b pb-2">{doc.title}</h2>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {doc.content}
+            </ReactMarkdown>
+          </div>
         </div>
       ))}
 
@@ -40,12 +44,12 @@ export default function ProjectContentPanel({
         <div
           key={diagram.id}
           id={`diagram-${diagram.id}`}
-          className="space-y-2 scroll-mt-4"
+          className="space-y-3 scroll-mt-4"
         >
-          <h2 className="text-base font-semibold">{diagram.title}</h2>
-          <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto">
-            {diagram.content}
-          </pre>
+          <h2 className="text-base font-semibold border-b pb-2">
+            {diagram.title}
+          </h2>
+          <MermaidDiagram content={diagram.content} />
         </div>
       ))}
     </div>
