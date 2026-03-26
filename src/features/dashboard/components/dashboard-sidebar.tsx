@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -83,6 +84,7 @@ function NavSection({ label, items, pathname }: NavSectionProps) {
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const { isMobile } = useSidebar();
 
   const mainItems: MenuItem[] = [
     { title: "Dashboard", url: "/", icon: HomeIcon },
@@ -109,7 +111,7 @@ export function DashboardSidebar() {
         <span className="group-data-[collapsible=icon]:hidden font-semibold text-[15px] tracking-tight text-foreground">
           StackCraft
         </span>
-        <SidebarTrigger className="ml-auto lg:hidden" />
+        {isMobile && <SidebarTrigger className="ml-auto" />}
       </div>
 
       <div className="mx-3 border-t border-dashed border-border" />
@@ -147,6 +149,7 @@ export function DashboardSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

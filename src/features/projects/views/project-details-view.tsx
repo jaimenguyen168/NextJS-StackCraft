@@ -1,8 +1,8 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import PageHeader from "@/components/page-header";
+import { Loader2 } from "lucide-react";
+import { useProject } from "@/trpc/hooks/use-projects";
 
 interface ProjectDetailsViewProps {
   projectId: string;
@@ -11,22 +11,44 @@ interface ProjectDetailsViewProps {
 export default function ProjectDetailsView({
   projectId,
 }: ProjectDetailsViewProps) {
-  const trpc = useTRPC();
-  const { data: project } = useSuspenseQuery(
-    trpc.projects.getById.queryOptions({ id: projectId }),
-  );
+  const { project } = useProject(projectId);
 
   if (!project)
     return <div className="p-6 text-muted-foreground">Project not found.</div>;
 
+  const isGenerating =
+    project.status === "GENERATING" || project.status === "PENDING";
+
   return (
     <div className="flex flex-col flex-1">
       <PageHeader title={project.name} />
-      <div className="p-4 lg:p-6 space-y-4">
+      <div className="p-4 lg:p-6 space-y-6">
+        {isGenerating && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Generating your project blueprint...
+          </div>
+        )}
+
         <p className="text-sm text-muted-foreground">{project.description}</p>
-        <p className="text-xs text-muted-foreground">
-          Status: {project.status}
-        </p>
+
+        {project.documents.map((doc) => (
+          <div key={doc.id} className="space-y-2">
+            <h2 className="text-base font-semibold">{doc.title}</h2>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {doc.content}
+            </p>
+          </div>
+        ))}
+
+        {project.diagrams.map((diagram) => (
+          <div key={diagram.id} className="space-y-2">
+            <h2 className="text-base font-semibold">{diagram.title}</h2>
+            <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto">
+              {diagram.content}
+            </pre>
+          </div>
+        ))}
       </div>
     </div>
   );

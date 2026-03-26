@@ -1,35 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useTRPC } from "@/trpc/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCreateProject } from "@/trpc/hooks/use-projects";
 
 const DashboardInputPanel = () => {
   const [text, setText] = useState("");
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const createProject = useCreateProject();
 
-  const create = useMutation(
-    trpc.projects.create.mutationOptions({
-      onSuccess: (project) => {
-        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
-        router.push(`/projects/${project.id}`);
-      },
-    }),
-  );
+  useEffect(() => {
+    const syncPrompt = () => {
+      const prompt = searchParams.get("prompt");
+      if (prompt) setText(decodeURIComponent(prompt));
+    };
+    syncPrompt();
+  }, [searchParams]);
 
   const handleGenerate = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    create.mutate({
-      name: "Untitled Project",
-      description: trimmed,
-    });
+
+    createProject.mutate(
+      { name: "Untitled Project", description: trimmed },
+      {
+        onSuccess: (project) => {
+          router.push(`/projects/${project.id}`);
+          fetch("/api/projects/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: project.id }),
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -52,12 +60,12 @@ const DashboardInputPanel = () => {
         <div className="flex items-center justify-end p-3">
           <Button
             size="sm"
-            disabled={!text.trim() || create.isPending}
+            disabled={!text.trim() || createProject.isPending}
             onClick={handleGenerate}
             className="w-full lg:w-auto"
           >
             <Sparkles className="size-4" />
-            {create.isPending ? "Creating..." : "Generate blueprint"}
+            {createProject.isPending ? "Creating..." : "Generate blueprint"}
           </Button>
         </div>
       </div>
