@@ -1,19 +1,17 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ProjectCard from "@/features/projects/components/project-card";
+import { useProjects } from "@/trpc/hooks/use-projects";
 
 const DashboardRecentProjects = () => {
-  const trpc = useTRPC();
   const router = useRouter();
-  const { data } = useSuspenseQuery(trpc.projects.getAll.queryOptions());
+  const { projects } = useProjects();
 
-  const recent = data.slice(0, 4);
+  const recent = projects.slice(0, 4);
 
   if (recent.length === 0) return null;
 

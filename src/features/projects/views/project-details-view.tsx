@@ -1,9 +1,8 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useQuery } from "@tanstack/react-query";
 import PageHeader from "@/components/page-header";
 import { Loader2 } from "lucide-react";
+import { useProject } from "@/trpc/hooks/use-projects";
 
 interface ProjectDetailsViewProps {
   projectId: string;
@@ -12,14 +11,7 @@ interface ProjectDetailsViewProps {
 export default function ProjectDetailsView({
   projectId,
 }: ProjectDetailsViewProps) {
-  const trpc = useTRPC();
-
-  const { data: project } = useQuery({
-    ...trpc.projects.getById.queryOptions({ id: projectId }),
-    // Poll every 3s while generating
-    refetchInterval: (query) =>
-      query.state.data?.status === "GENERATING" ? 3000 : false,
-  });
+  const { project } = useProject(projectId);
 
   if (!project)
     return <div className="p-6 text-muted-foreground">Project not found.</div>;
