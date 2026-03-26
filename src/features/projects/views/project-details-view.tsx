@@ -38,7 +38,7 @@ export default function ProjectDetailsView({
             <ProjectContentPanel project={project} />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background from-5% to-transparent" />
           </div>
-          <ProjectChatPanel />
+          <ProjectChatPanel project={project} />
         </div>
         {/* Right — side panel */}
         <ProjectSidePanel project={project} />

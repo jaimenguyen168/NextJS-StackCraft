@@ -36,3 +36,50 @@ export function useCreateProject() {
     }),
   );
 }
+
+// add to use-projects.ts
+export function useUpdateProjectName(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateName.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateDocument(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateDocument.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useUpdateDiagram(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateDiagram.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}

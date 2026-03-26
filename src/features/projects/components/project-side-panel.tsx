@@ -2,17 +2,20 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HistoryIcon, NavigationIcon } from "lucide-react";
+import { HistoryIcon, ListIcon } from "lucide-react";
+import { ProjectOutline, ProjectHistoryContent } from "./project-outline";
 
 interface ProjectSidePanelProps {
   project: {
-    documents: { id: string; title: string }[];
-    diagrams: { id: string; title: string }[];
+    id: string;
+    name: string;
+    documents: { id: string; title: string; content: string }[];
+    diagrams: { id: string; title: string; content: string }[];
   };
 }
 
 export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
-  const [activeTab, setActiveTab] = useState("navigation");
+  const [activeTab, setActiveTab] = useState("outline");
 
   const handleScrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -28,74 +31,38 @@ export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
         <div className="relative shrink-0">
           <TabsList className="w-full bg-transparent rounded-none h-12! p-0 gap-0 border-none shadow-none">
             <TabsTrigger
-              value="navigation"
+              value="outline"
               className="flex-1 h-full gap-2 rounded-none bg-transparent border-0 shadow-none text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              <NavigationIcon className="size-4" />
-              Navigation
+              <ListIcon className="size-4" />
+              Outline
             </TabsTrigger>
             <TabsTrigger
               value="history"
               className="flex-1 h-full gap-2 rounded-none bg-transparent border-0 shadow-none text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              <HistoryIcon className="size-4" />
-              History
+              <HistoryIcon className="size-4" /> History
             </TabsTrigger>
           </TabsList>
-
-          {/* Full border */}
           <div className="absolute bottom-0 inset-x-0 h-px bg-border" />
-
-          {/* Sliding indicator on top of border */}
           <div
             className="absolute bottom-0 h-px w-1/2 bg-foreground transition-transform duration-300 ease-in-out"
             style={{
-              transform: `translateX(${activeTab === "navigation" ? "0%" : "100%"})`,
+              transform: `translateX(${activeTab === "outline" ? "0%" : "100%"})`,
             }}
           />
         </div>
-
         <TabsContent
-          value="navigation"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-3"
+          value="outline"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
-          <div className="space-y-1">
-            {project.documents.length === 0 && project.diagrams.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-                Sections will appear here once generated.
-              </p>
-            ) : (
-              <>
-                {project.documents.map((doc) => (
-                  <button
-                    key={doc.id}
-                    onClick={() => handleScrollTo(`doc-${doc.id}`)}
-                    className="w-full text-left text-[13px] px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                  >
-                    {doc.title}
-                  </button>
-                ))}
-                {project.diagrams.map((diagram) => (
-                  <button
-                    key={diagram.id}
-                    onClick={() => handleScrollTo(`diagram-${diagram.id}`)}
-                    className="w-full text-left text-[13px] px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                  >
-                    {diagram.title}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
+          <ProjectOutline project={project} onScrollToAction={handleScrollTo} />
         </TabsContent>
-
         <TabsContent
           value="history"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-3"
         >
-          <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-            Prompt history will appear here.
-          </p>
+          <ProjectHistoryContent />
         </TabsContent>
       </Tabs>
     </div>
