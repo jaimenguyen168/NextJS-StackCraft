@@ -1,9 +1,15 @@
-import React from "react";
+import type { Metadata } from "next";
+import { prefetch, trpc, HydrateClient } from "@/trpc/server";
 import ProjectsView from "@/features/projects/views/projects-view";
-import { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Projects" };
 
-export default function ProjectsPage() {
-  return <ProjectsView />;
+export default async function ProjectsPage() {
+  prefetch(trpc.projects.getAll.queryOptions());
+
+  return (
+    <HydrateClient>
+      <ProjectsView />
+    </HydrateClient>
+  );
 }

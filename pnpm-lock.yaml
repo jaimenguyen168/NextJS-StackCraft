@@ -17,9 +17,27 @@ importers:
       '@prisma/adapter-pg':
         specifier: ^7.5.0
         version: 7.5.0
+      '@prisma/client':
+        specifier: ^7.5.0
+        version: 7.5.0(prisma@7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3)
+      '@tanstack/react-query':
+        specifier: ^5.95.2
+        version: 5.95.2(react@19.2.4)
+      '@trpc/client':
+        specifier: ^11.15.0
+        version: 11.15.0(@trpc/server@11.15.0(typescript@5.9.3))(typescript@5.9.3)
+      '@trpc/server':
+        specifier: ^11.15.0
+        version: 11.15.0(typescript@5.9.3)
+      '@trpc/tanstack-react-query':
+        specifier: ^11.15.0
+        version: 11.15.0(@tanstack/react-query@5.95.2(react@19.2.4))(@trpc/client@11.15.0(@trpc/server@11.15.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.15.0(typescript@5.9.3))(react@19.2.4)(typescript@5.9.3)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
+      client-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -65,12 +83,18 @@ importers:
       recharts:
         specifier: 3.8.0
         version: 3.8.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react-is@16.13.1)(react@19.2.4)(redux@5.0.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       shadcn:
         specifier: ^4.1.0
         version: 4.1.0(@types/node@20.19.37)(typescript@5.9.3)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      superjson:
+        specifier: ^2.2.6
+        version: 2.2.6
       tailwind-merge:
         specifier: ^3.5.0
         version: 3.5.0
@@ -80,6 +104,9 @@ importers:
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
@@ -913,6 +940,21 @@ packages:
 
   '@prisma/adapter-pg@7.5.0':
     resolution: {integrity: sha512-EJx7OLULahcC3IjJgdx2qRDNCT+ToY2v66UkeETMCLhNOTgqVzRzYvOEphY7Zp0eHyzfkC33Edd/qqeadf9R4A==}
+
+  '@prisma/client-runtime-utils@7.5.0':
+    resolution: {integrity: sha512-KnJ2b4Si/pcWEtK68uM+h0h1oh80CZt2suhLTVuLaSKg4n58Q9jBF/A42Kw6Ma+aThy1yAhfDeTC0JvEmeZnFQ==}
+
+  '@prisma/client@7.5.0':
+    resolution: {integrity: sha512-h4hF9ctp+kSRs7ENHGsFQmHAgHcfkOCxbYt6Ti9Xi8x7D+kP4tTi9x51UKmiTH/OqdyJAO+8V+r+JA5AWdav7w==}
+    engines: {node: ^20.19 || ^22.12 || >=24.0}
+    peerDependencies:
+      prisma: '*'
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      prisma:
+        optional: true
+      typescript:
+        optional: true
 
   '@prisma/config@7.5.0':
     resolution: {integrity: sha512-1J/9YEX7A889xM46PYg9e8VAuSL1IUmXJW3tEhMv7XQHDWlfC9YSkIw9sTYRaq5GswGlxZ+GnnyiNsUZ9JJhSQ==}
@@ -1777,6 +1819,37 @@ packages:
   '@tanstack/query-core@5.90.16':
     resolution: {integrity: sha512-MvtWckSVufs/ja463/K4PyJeqT+HMlJWtw6PrCpywznd2NSgO3m4KwO9RqbFqGg6iDE8vVMFWMeQI4Io3eEYww==}
 
+  '@tanstack/query-core@5.95.2':
+    resolution: {integrity: sha512-o4T8vZHZET4Bib3jZ/tCW9/7080urD4c+0/AUaYVpIqOsr7y0reBc1oX3ttNaSW5mYyvZHctiQ/UOP2PfdmFEQ==}
+
+  '@tanstack/react-query@5.95.2':
+    resolution: {integrity: sha512-/wGkvLj/st5Ud1Q76KF1uFxScV7WeqN1slQx5280ycwAyYkIPGaRZAEgHxe3bjirSd5Zpwkj6zNcR4cqYni/ZA==}
+    peerDependencies:
+      react: ^18 || ^19
+
+  '@trpc/client@11.15.0':
+    resolution: {integrity: sha512-8mdFwCU3sK4W6Wg5LIBl5SonYqE4I6UlwR80qL3e7SSxYWHH+ZeQGlBjbLNL3+VsOxXaAAfUJYRCMsEZgQSFPw==}
+    hasBin: true
+    peerDependencies:
+      '@trpc/server': 11.15.0
+      typescript: '>=5.7.2'
+
+  '@trpc/server@11.15.0':
+    resolution: {integrity: sha512-qLcodARy05fzMSrNG6VYtynsAmUCRaQ7SDm3Ynvryhylp2Zq4KN28qJeMlMqLeJKwZ05KukkcIsVTKzscWX1pQ==}
+    hasBin: true
+    peerDependencies:
+      typescript: '>=5.7.2'
+
+  '@trpc/tanstack-react-query@11.15.0':
+    resolution: {integrity: sha512-5zKGSw/xNYcCBgyCf+WTrncWNt9997jKShD24F0IVMJnqq3Q4CszoTciVxdc5k4X615MbkO8Oh8tdn62D1FnlA==}
+    hasBin: true
+    peerDependencies:
+      '@tanstack/react-query': ^5.80.3
+      '@trpc/client': 11.15.0
+      '@trpc/server': 11.15.0
+      react: '>=18.2.0'
+      typescript: '>=5.7.2'
+
   '@ts-morph/common@0.27.0':
     resolution: {integrity: sha512-Wf29UqxWDpc+i61k3oIOzcUfQt79PIT9y/MWfAGlrkjg6lBC1hwDECLXPVJAhWjiGbfBCxZd65F/LIZF3+jeJQ==}
 
@@ -2287,6 +2360,10 @@ packages:
 
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
+    engines: {node: '>=18'}
+
+  copy-anything@4.0.5:
+    resolution: {integrity: sha512-7Vv6asjS4gMOuILabD3l739tsaxFQmC+a7pLZm02zyvs8p977bL3zEgq3yDk5rn9B0PbYgIv++jmHcuUab4RhA==}
     engines: {node: '>=18'}
 
   cors@2.8.6:
@@ -3240,6 +3317,10 @@ packages:
   is-weakset@2.0.4:
     resolution: {integrity: sha512-mfcwb6IzQyOKTs84CQMrOwW4gQcaTOAWJ0zzJCl2WSPDrWk/OzDaImWFH3djXhb24g4eudZfLRozAvPGw4d9hQ==}
     engines: {node: '>= 0.4'}
+
+  is-what@5.5.0:
+    resolution: {integrity: sha512-oG7cgbmg5kLYae2N5IVd3jm2s+vldjxJzK1pcu9LfpGuQ93MQSzo0okvRna+7y5ifrD+20FE8FvjusyGaz14fw==}
+    engines: {node: '>=18'}
 
   is-wsl@3.1.1:
     resolution: {integrity: sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==}
@@ -4306,6 +4387,10 @@ packages:
       babel-plugin-macros:
         optional: true
 
+  superjson@2.2.6:
+    resolution: {integrity: sha512-H+ue8Zo4vJmV2nRjpx86P35lzwDT3nItnIsocgumgr0hHMQ+ZGq5vrERg9kJBo5AWGmxZDhzDo+WVIJqkB0cGA==}
+    engines: {node: '>=16'}
+
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
@@ -5345,6 +5430,15 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
+  '@prisma/client-runtime-utils@7.5.0': {}
+
+  '@prisma/client@7.5.0(prisma@7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3)':
+    dependencies:
+      '@prisma/client-runtime-utils': 7.5.0
+    optionalDependencies:
+      prisma: 7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
+      typescript: 5.9.3
+
   '@prisma/config@7.5.0':
     dependencies:
       c12: 3.1.0
@@ -6263,6 +6357,30 @@ snapshots:
 
   '@tanstack/query-core@5.90.16': {}
 
+  '@tanstack/query-core@5.95.2': {}
+
+  '@tanstack/react-query@5.95.2(react@19.2.4)':
+    dependencies:
+      '@tanstack/query-core': 5.95.2
+      react: 19.2.4
+
+  '@trpc/client@11.15.0(@trpc/server@11.15.0(typescript@5.9.3))(typescript@5.9.3)':
+    dependencies:
+      '@trpc/server': 11.15.0(typescript@5.9.3)
+      typescript: 5.9.3
+
+  '@trpc/server@11.15.0(typescript@5.9.3)':
+    dependencies:
+      typescript: 5.9.3
+
+  '@trpc/tanstack-react-query@11.15.0(@tanstack/react-query@5.95.2(react@19.2.4))(@trpc/client@11.15.0(@trpc/server@11.15.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.15.0(typescript@5.9.3))(react@19.2.4)(typescript@5.9.3)':
+    dependencies:
+      '@tanstack/react-query': 5.95.2(react@19.2.4)
+      '@trpc/client': 11.15.0(@trpc/server@11.15.0(typescript@5.9.3))(typescript@5.9.3)
+      '@trpc/server': 11.15.0(typescript@5.9.3)
+      react: 19.2.4
+      typescript: 5.9.3
+
   '@ts-morph/common@0.27.0':
     dependencies:
       fast-glob: 3.3.3
@@ -6782,6 +6900,10 @@ snapshots:
   cookie@0.7.2: {}
 
   cookie@1.1.1: {}
+
+  copy-anything@4.0.5:
+    dependencies:
+      is-what: 5.5.0
 
   cors@2.8.6:
     dependencies:
@@ -7860,6 +7982,8 @@ snapshots:
     dependencies:
       call-bound: 1.0.4
       get-intrinsic: 1.3.0
+
+  is-what@5.5.0: {}
 
   is-wsl@3.1.1:
     dependencies:
@@ -9051,6 +9175,10 @@ snapshots:
       react: 19.2.4
     optionalDependencies:
       '@babel/core': 7.29.0
+
+  superjson@2.2.6:
+    dependencies:
+      copy-anything: 4.0.5
 
   supports-color@7.2.0:
     dependencies:
