@@ -18,7 +18,7 @@ const PageHeader = ({ title, className, actions }: PageHeaderProps) => {
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b px-4 h-14",
+        "flex items-center justify-between border-b px-4 h-14 shrink-0",
         className,
       )}
     >
