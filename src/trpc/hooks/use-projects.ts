@@ -83,3 +83,31 @@ export function useUpdateDiagram(projectId: string) {
     }),
   );
 }
+
+export function useDeleteDocument(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteDocument.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useDeleteDiagram(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteDiagram.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}

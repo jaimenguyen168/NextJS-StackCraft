@@ -105,4 +105,25 @@ export const projectsRouter = createTRPCRouter({
         data: { content: input.content },
       });
     }),
+
+  // add to projectsRouter
+  deleteDocument: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const document = await prisma.document.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return prisma.document.delete({ where: { id: input.id } });
+    }),
+
+  deleteDiagram: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const diagram = await prisma.diagram.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!diagram) throw new TRPCError({ code: "NOT_FOUND" });
+      return prisma.diagram.delete({ where: { id: input.id } });
+    }),
 });

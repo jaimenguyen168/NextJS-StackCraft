@@ -6,6 +6,7 @@ import { useProject } from "@/trpc/hooks/use-projects";
 import ProjectContentPanel from "@/features/projects/components/project-content-panel";
 import ProjectChatPanel from "@/features/projects/components/project-chat-panel";
 import ProjectSidePanel from "@/features/projects/components/project-side-panel";
+import { Suspense } from "react";
 
 interface ProjectDetailsViewProps {
   projectId: string;
@@ -38,7 +39,9 @@ export default function ProjectDetailsView({
             <ProjectContentPanel project={project} />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background from-5% to-transparent" />
           </div>
-          <ProjectChatPanel project={project} />
+          <Suspense fallback={null}>
+            <ProjectChatPanel project={project} />
+          </Suspense>
         </div>
         {/* Right — side panel */}
         <ProjectSidePanel project={project} />

@@ -1,15 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { PencilIcon, CheckIcon, XIcon } from "lucide-react";
+import {
+  PencilIcon,
+  CheckIcon,
+  XIcon,
+  SparklesIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   useUpdateProjectName,
   useUpdateDocument,
   useUpdateDiagram,
+  useDeleteDocument,
+  useDeleteDiagram,
 } from "@/trpc/hooks/use-projects";
+import { useRouter } from "next/navigation";
 
 interface Project {
   id: string;
@@ -20,17 +41,21 @@ interface Project {
 
 function DocumentItem({
   doc,
+  projectId,
   onSave,
   onScrollTo,
-  onClose,
+  onCloseAction,
 }: {
   doc: { id: string; title: string; content: string };
+  projectId: string;
   onSave: (id: string, content: string) => void;
   onScrollTo: (id: string) => void;
-  onClose?: () => void;
+  onCloseAction?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(doc.content);
+  const deleteDoc = useDeleteDocument(projectId);
+  const router = useRouter();
 
   if (editing) {
     return (
@@ -48,7 +73,7 @@ function DocumentItem({
             onClick={() => {
               onSave(doc.id, draft);
               setEditing(false);
-              onClose?.();
+              onCloseAction?.();
             }}
           >
             <CheckIcon className="size-3" /> Save
@@ -74,35 +99,91 @@ function DocumentItem({
       <button
         onClick={() => {
           onScrollTo(`doc-${doc.id}`);
-          onClose?.();
+          onCloseAction?.();
         }}
         className="text-[13px] text-muted-foreground group-hover:text-foreground truncate text-left flex-1"
       >
         {doc.title}
       </button>
-      <button
-        onClick={() => setEditing(true)}
-        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <PencilIcon className="size-3 text-muted-foreground hover:text-foreground" />
-      </button>
+
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 w-6 p-0"
+            title="Edit with AI"
+            onClick={() => {
+              router.push(
+                `/projects/${projectId}?prompt=${encodeURIComponent(`Edit the "${doc.title}" section: `)}`,
+              );
+              onCloseAction?.();
+            }}
+          >
+            <SparklesIcon className="size-3" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 w-6 p-0"
+            title="Edit manually"
+            onClick={() => setEditing(true)}
+          >
+            <PencilIcon className="size-3" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                title="Delete"
+              >
+                <Trash2Icon className="size-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{doc.title}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this document. This action cannot
+                  be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteDoc.mutate({ id: doc.id })}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </ButtonGroup>
+      </div>
     </div>
   );
 }
 
 function DiagramItem({
   diagram,
+  projectId,
   onSave,
   onScrollTo,
-  onClose,
+  onCloseAction,
 }: {
   diagram: { id: string; title: string; content: string };
+  projectId: string;
   onSave: (id: string, content: string) => void;
   onScrollTo: (id: string) => void;
-  onClose?: () => void;
+  onCloseAction?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(diagram.content);
+  const deleteDiagram = useDeleteDiagram(projectId);
+  const router = useRouter();
 
   if (editing) {
     return (
@@ -120,7 +201,7 @@ function DiagramItem({
             onClick={() => {
               onSave(diagram.id, draft);
               setEditing(false);
-              onClose?.();
+              onCloseAction?.();
             }}
           >
             <CheckIcon className="size-3" /> Save
@@ -146,18 +227,70 @@ function DiagramItem({
       <button
         onClick={() => {
           onScrollTo(`diagram-${diagram.id}`);
-          onClose?.();
+          onCloseAction?.();
         }}
         className="text-[13px] text-muted-foreground group-hover:text-foreground truncate text-left flex-1"
       >
         {diagram.title}
       </button>
-      <button
-        onClick={() => setEditing(true)}
-        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <PencilIcon className="size-3 text-muted-foreground hover:text-foreground" />
-      </button>
+
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 w-6 p-0"
+            title="Edit with AI"
+            onClick={() => {
+              router.push(
+                `/projects/${projectId}?prompt=${encodeURIComponent(`Edit the "${diagram.title}" diagram: `)}`,
+              );
+              onCloseAction?.();
+            }}
+          >
+            <SparklesIcon className="size-3" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 w-6 p-0"
+            title="Edit manually"
+            onClick={() => setEditing(true)}
+          >
+            <PencilIcon className="size-3" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                title="Delete"
+              >
+                <Trash2Icon className="size-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{diagram.title}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this diagram. This action cannot
+                  be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteDiagram.mutate({ id: diagram.id })}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </ButtonGroup>
+      </div>
     </div>
   );
 }
@@ -242,9 +375,10 @@ export function ProjectOutline({
               <DocumentItem
                 key={doc.id}
                 doc={doc}
+                projectId={project.id}
                 onSave={(id, content) => updateDocument.mutate({ id, content })}
                 onScrollTo={onScrollToAction}
-                onClose={onCloseAction}
+                onCloseAction={onCloseAction}
               />
             ))}
           </div>
@@ -261,9 +395,10 @@ export function ProjectOutline({
               <DiagramItem
                 key={diagram.id}
                 diagram={diagram}
+                projectId={project.id}
                 onSave={(id, content) => updateDiagram.mutate({ id, content })}
                 onScrollTo={onScrollToAction}
-                onClose={onCloseAction}
+                onCloseAction={onCloseAction}
               />
             ))}
           </div>

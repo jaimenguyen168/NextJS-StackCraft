@@ -26,7 +26,7 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
     <div
       onClick={onClick}
       className={cn(
-        "group flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-150 hover:shadow-sm hover:border-border/80",
+        "group flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-150 hover:shadow-sm hover:border-border/80 hover:scale-[1.01]",
         onClick && "cursor-pointer",
       )}
     >

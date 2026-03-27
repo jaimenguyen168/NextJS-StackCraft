@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { SendIcon, HistoryIcon, ListIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { SendIcon, HistoryIcon, ListIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,6 +12,10 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { ProjectOutline, ProjectHistoryContent } from "./project-outline";
+import { useTRPC } from "@/trpc/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useSearchParams, useRouter } from "next/navigation";
 
 interface ProjectChatPanelProps {
   project: {
@@ -25,10 +29,60 @@ interface ProjectChatPanelProps {
 export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    const syncPrompt = () => {
+      const p = searchParams.get("prompt");
+      if (p) {
+        setPrompt(decodeURIComponent(p));
+        // Clear the param from URL without navigation
+        router.replace(`/projects/${project.id}`, { scroll: false });
+      }
+    };
+    syncPrompt();
+  }, [searchParams]);
 
   const handleScrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setNavOpen(false);
+  };
+
+  const handleSend = async () => {
+    const trimmed = prompt.trim();
+    if (!trimmed || loading) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/projects/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, prompt: trimmed }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Something went wrong");
+        return;
+      }
+
+      toast.success(data.message);
+      setPrompt("");
+
+      await queryClient.refetchQueries({
+        queryKey: trpc.projects.getById.queryKey({ id: project.id }),
+      });
+    } catch {
+      toast.error("Failed to send edit request");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,6 +91,15 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
         <Textarea
           placeholder="Ask AI to edit or improve any section..."
           className="min-h-28 resize-none text-sm border-border/60 bg-muted/30 focus-visible:ring-0 focus-visible:border-primary/50"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          disabled={loading}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
         />
         <div className="flex items-center justify-between py-1">
           <div className="flex items-center gap-3 lg:hidden">
@@ -79,9 +142,18 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
             </Drawer>
           </div>
 
-          <Button size="sm" className="ml-auto px-5">
-            <SendIcon className="size-4" />
-            Send
+          <Button
+            size="sm"
+            className="ml-auto px-5"
+            onClick={handleSend}
+            disabled={!prompt.trim() || loading}
+          >
+            {loading ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <SendIcon className="size-4" />
+            )}
+            {loading ? "Editing..." : "Send"}
           </Button>
         </div>
       </div>

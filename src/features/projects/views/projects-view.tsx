@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import ProjectCard from "@/features/projects/components/project-card";
 import { useCreateProject, useProjects } from "@/trpc/hooks/use-projects";
+import { useRouter } from "next/navigation";
 
 const ProjectsView = () => {
+  const router = useRouter();
   const { projects } = useProjects();
   const createProject = useCreateProject();
 
@@ -51,7 +53,11 @@ const ProjectsView = () => {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onClick={() => router.push(`/projects/${project.id}`)}
+              />
             ))}
           </div>
         )}
