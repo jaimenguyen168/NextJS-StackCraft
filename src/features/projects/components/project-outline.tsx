@@ -144,7 +144,9 @@ function DocumentItem({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{doc.title}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Delete &quot;{doc.title}&quot;?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   This will permanently delete this document. This action cannot
                   be undone.
@@ -272,7 +274,9 @@ function DiagramItem({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{diagram.title}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Delete &quot;{diagram.title}&quot;?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   This will permanently delete this diagram. This action cannot
                   be undone.
@@ -411,13 +415,5 @@ export function ProjectOutline({
         </p>
       )}
     </div>
-  );
-}
-
-export function ProjectHistoryContent() {
-  return (
-    <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-      Prompt history will appear here.
-    </p>
   );
 }

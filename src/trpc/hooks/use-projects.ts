@@ -64,6 +64,9 @@ export function useUpdateDocument(projectId: string) {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
         );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
       },
     }),
   );
@@ -79,6 +82,9 @@ export function useUpdateDiagram(projectId: string) {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
         );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
       },
     }),
   );
@@ -87,11 +93,15 @@ export function useUpdateDiagram(projectId: string) {
 export function useDeleteDocument(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+
   return useMutation(
     trpc.projects.deleteDocument.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
         );
       },
     }),
@@ -101,11 +111,33 @@ export function useDeleteDocument(projectId: string) {
 export function useDeleteDiagram(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+
   return useMutation(
     trpc.projects.deleteDiagram.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useRestoreProject(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.restore.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
         );
       },
     }),

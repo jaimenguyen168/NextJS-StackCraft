@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -13,55 +8,86 @@ datasource db {
 }
 
 model Project {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   userId      String
   name        String
   description String
 
-  diagrams    Diagram[]
-  documents   Document[]
+  diagrams  Diagram[]
+  documents Document[]
+  chats     ProjectChat[]
 
   status    ProjectStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model Document {
-  id        String       @id @default(cuid())
+  id        String  @id @default(cuid())
   projectId String
-  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  type      DocumentType
-  title     String
-  content   String       // Markdown — easy to copy into Notion/Docusaurus/GitHub
+  type    DocumentType
+  title   String
+  content String
 
-  order     Int
+  order Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Diagram {
-  id        String      @id @default(cuid())
+  id        String  @id @default(cuid())
   projectId String
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  type      DiagramType
-  title     String
-  content   String
+  type    DiagramType
+  title   String
+  content String
 
-  order     Int
+  order Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+model ProjectChat {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatMessage {
+  id     String      @id @default(cuid())
+  chatId String
+  chat   ProjectChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  role    MessageRole
+  content String
+
+  // What changed at this moment
+  snapshot Json?
+
+  createdAt DateTime @default(now())
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
 enum DocumentType {
-  OVERVIEW       // project summary + goals
-  TECH_STACK     // stack choices + rationale
-  TIMELINE       // phases + milestones
-  API_STRUCTURE  // endpoints + descriptions
-  TASKS          // user stories / breakdown
+  OVERVIEW
+  TECH_STACK
+  TIMELINE
+  API_STRUCTURE
+  TASKS
 }
 
 enum DiagramType {

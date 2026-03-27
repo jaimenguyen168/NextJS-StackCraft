@@ -23,6 +23,7 @@ export default function MermaidDiagram({ content }: MermaidDiagramProps) {
       startOnLoad: false,
       theme: resolvedTheme === "dark" ? "dark" : "neutral",
       securityLevel: "loose",
+      suppressErrorRendering: true,
     });
 
     const render = async () => {
@@ -34,7 +35,11 @@ export default function MermaidDiagram({ content }: MermaidDiagramProps) {
         }
       } catch (e) {
         if (ref.current) {
-          ref.current.innerHTML = `<pre class="text-xs text-destructive p-3 bg-muted rounded-lg overflow-auto">${content}</pre>`;
+          ref.current.innerHTML = `
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+              Failed to render diagram
+            </div>
+          `;
         }
       }
     };
@@ -42,5 +47,5 @@ export default function MermaidDiagram({ content }: MermaidDiagramProps) {
     render();
   }, [content, resolvedTheme]);
 
-  return <div ref={ref} className="w-full overflow-auto" />;
+  return <div ref={ref} className="w-full" />;
 }

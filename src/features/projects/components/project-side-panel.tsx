@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HistoryIcon, ListIcon } from "lucide-react";
-import { ProjectOutline, ProjectHistoryContent } from "./project-outline";
+import { ProjectOutline } from "./project-outline";
+import { ProjectHistory } from "@/features/projects/components/project-history";
 
 interface ProjectSidePanelProps {
   project: {
@@ -62,7 +63,9 @@ export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
           value="history"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-3"
         >
-          <ProjectHistoryContent />
+          <Suspense fallback={null}>
+            <ProjectHistory projectId={project.id} />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>

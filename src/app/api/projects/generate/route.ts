@@ -36,11 +36,27 @@ export async function POST(request: Request) {
       data: { status: "GENERATING" },
     });
 
-    // Run in background
-    generateAll(projectId, project.description).catch(async () => {
+    const chat = await prisma.projectChat.create({ data: { projectId } });
+
+    await prisma.chatMessage.create({
+      data: {
+        chatId: chat.id,
+        role: "USER",
+        content: `Generate full project blueprint for: "${project.description}"`,
+      },
+    });
+
+    generateAll(projectId, project.description, chat.id).catch(async () => {
       await prisma.project.update({
         where: { id: projectId },
         data: { status: "FAILED" },
+      });
+      await prisma.chatMessage.create({
+        data: {
+          chatId: chat.id,
+          role: "ASSISTANT",
+          content: "Generation failed. Please try regenerating the project.",
+        },
       });
     });
 
@@ -54,9 +70,12 @@ export async function POST(request: Request) {
   }
 }
 
-async function generateAll(projectId: string, description: string) {
-  // Run all in parallel
-  await Promise.all([
+async function generateAll(
+  projectId: string,
+  description: string,
+  chatId: string,
+) {
+  const results = await Promise.allSettled([
     generateDocument(projectId, description, "OVERVIEW", 0),
     generateDocument(projectId, description, "TECH_STACK", 1),
     generateDocument(projectId, description, "TIMELINE", 2),
@@ -66,9 +85,53 @@ async function generateAll(projectId: string, description: string) {
     generateDiagram(projectId, description, "ERD", 1),
   ]);
 
+  const created = results
+    .filter((r) => r.status === "fulfilled")
+    .map(
+      (r) =>
+        (r as PromiseFulfilledResult<{ type: string; title: string }>).value,
+    );
+
   await prisma.project.update({
     where: { id: projectId },
     data: { status: "COMPLETE" },
+  });
+
+  const finalProject = await prisma.project.findFirst({
+    where: { id: projectId },
+    include: {
+      documents: { orderBy: { order: "asc" } },
+      diagrams: { orderBy: { order: "asc" } },
+    },
+  });
+
+  await prisma.chatMessage.create({
+    data: {
+      chatId,
+      role: "ASSISTANT",
+      content: `Generated ${created.length} sections: ${created.map((c) => c.title).join(", ")}`,
+      snapshot: {
+        created,
+        edited: [],
+        projectState: {
+          description: finalProject?.description ?? "",
+          documents: finalProject?.documents.map((d) => ({
+            id: d.id,
+            title: d.title,
+            type: d.type,
+            content: d.content,
+            order: d.order,
+          })),
+          diagrams: finalProject?.diagrams.map((d) => ({
+            id: d.id,
+            title: d.title,
+            type: d.type,
+            content: d.content,
+            order: d.order,
+          })),
+        },
+      },
+    },
   });
 }
 
@@ -120,6 +183,8 @@ async function generateDocument(
       order,
     },
   });
+
+  return { type: "document", title: documentTitles[type] };
 }
 
 async function generateDiagram(
@@ -142,4 +207,6 @@ async function generateDiagram(
       order,
     },
   });
+
+  return { type: "diagram", title: diagramTitles[type] };
 }

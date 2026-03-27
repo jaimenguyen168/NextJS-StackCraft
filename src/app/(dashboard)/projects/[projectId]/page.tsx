@@ -9,6 +9,7 @@ export default async function ProjectDetailsPage({
   const { projectId } = await params;
 
   prefetch(trpc.projects.getById.queryOptions({ id: projectId }));
+  prefetch(trpc.projects.getChat.queryOptions({ projectId }));
 
   return (
     <HydrateClient>

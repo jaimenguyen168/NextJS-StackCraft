@@ -6,22 +6,39 @@ import { useProject } from "@/trpc/hooks/use-projects";
 import ProjectContentPanel from "@/features/projects/components/project-content-panel";
 import ProjectChatPanel from "@/features/projects/components/project-chat-panel";
 import ProjectSidePanel from "@/features/projects/components/project-side-panel";
+import {
+  ProjectSnapshotProvider,
+  useProjectSnapshot,
+} from "@/features/projects/contexts/project-snapshot-context";
 import { Suspense } from "react";
+import Link from "next/link";
 
 interface ProjectDetailsViewProps {
   projectId: string;
 }
 
-export default function ProjectDetailsView({
-  projectId,
-}: ProjectDetailsViewProps) {
+function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
   const { project } = useProject(projectId);
+  const { snapshot, setSnapshot } = useProjectSnapshot();
 
   if (!project)
-    return <div className="p-6 text-muted-foreground">Project not found.</div>;
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center gap-2 text-muted-foreground">
+        <p className="text-sm">Project not found.</p>
+        <Link href="/projects" className="text-xs underline">
+          Back to projects
+        </Link>
+      </div>
+    );
 
   const isGenerating =
     project.status === "GENERATING" || project.status === "PENDING";
+
+  const displayProject = snapshot ?? {
+    description: project.description,
+    documents: project.documents,
+    diagrams: project.diagrams,
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -32,20 +49,38 @@ export default function ProjectDetailsView({
           Generating your project blueprint...
         </div>
       )}
+      {snapshot && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs text-amber-600 dark:text-amber-400 border-b bg-amber-50 dark:bg-amber-950/20">
+          Viewing a historical snapshot —
+          <button onClick={() => setSnapshot(null)} className="underline">
+            return to live project
+          </button>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Left — content + chat */}
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="relative flex-1 min-h-0">
-            <ProjectContentPanel project={project} />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background from-5% to-transparent" />
+            <div className="absolute inset-0 overflow-y-auto">
+              <ProjectContentPanel project={displayProject} />
+            </div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background to-transparent" />
           </div>
           <Suspense fallback={null}>
             <ProjectChatPanel project={project} />
           </Suspense>
         </div>
-        {/* Right — side panel */}
         <ProjectSidePanel project={project} />
       </div>
     </div>
+  );
+}
+
+export default function ProjectDetailsView({
+  projectId,
+}: ProjectDetailsViewProps) {
+  return (
+    <ProjectSnapshotProvider>
+      <ProjectDetailsContent projectId={projectId} />
+    </ProjectSnapshotProvider>
   );
 }

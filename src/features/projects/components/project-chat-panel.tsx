@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { SendIcon, HistoryIcon, ListIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,11 +11,12 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { ProjectOutline, ProjectHistoryContent } from "./project-outline";
+import { ProjectOutline } from "./project-outline";
 import { useTRPC } from "@/trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
+import { ProjectHistory } from "@/features/projects/components/project-history";
 
 interface ProjectChatPanelProps {
   project: {
@@ -78,6 +79,10 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       await queryClient.refetchQueries({
         queryKey: trpc.projects.getById.queryKey({ id: project.id }),
       });
+
+      await queryClient.invalidateQueries({
+        queryKey: trpc.projects.getChat.queryKey({ projectId: project.id }),
+      });
     } catch {
       toast.error("Failed to send edit request");
     } finally {
@@ -90,7 +95,7 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       <div className="p-3 space-y-2">
         <Textarea
           placeholder="Ask AI to edit or improve any section..."
-          className="min-h-28 resize-none text-sm border-border/60 bg-muted/30 focus-visible:ring-0 focus-visible:border-primary/50"
+          className="min-h-36 max-h-60 overflow-y-auto resize-none text-sm border-border/60 bg-muted/30 focus-visible:ring-0 focus-visible:border-primary/50"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           disabled={loading}
@@ -136,7 +141,9 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
                   <DrawerTitle>History</DrawerTitle>
                 </DrawerHeader>
                 <div className="overflow-y-auto max-h-[60vh] p-3">
-                  <ProjectHistoryContent />
+                  <Suspense fallback={null}>
+                    <ProjectHistory projectId={project.id} />
+                  </Suspense>
                 </div>
               </DrawerContent>
             </Drawer>
