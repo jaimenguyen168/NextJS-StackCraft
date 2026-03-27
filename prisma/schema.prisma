@@ -10,8 +10,12 @@ datasource db {
 model Project {
   id          String @id @default(cuid())
   userId      String
+  username    String
   name        String
   description String
+  slug        String
+
+  published   Boolean @default(false)
 
   diagrams  Diagram[]
   documents Document[]
@@ -20,6 +24,8 @@ model Project {
   status    ProjectStatus @default(PENDING)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  @@unique([username, slug])
 }
 
 model Document {

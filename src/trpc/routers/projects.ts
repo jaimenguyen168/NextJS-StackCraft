@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, authProcedure } from "@/trpc/init";
+import { createTRPCRouter, authProcedure, publicProcedure } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { DiagramType, DocumentType } from "@/generated/prisma/enums";
+import { slugify } from "@/lib/utils";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 async function getProjectSnapshot(projectId: string) {
@@ -45,14 +46,51 @@ async function getOrCreateChat(projectId: string) {
 
 export const projectsRouter = createTRPCRouter({
   create: authProcedure
-    .input(z.object({ name: z.string(), description: z.string() }))
+    .input(
+      z.object({
+        name: z.string(),
+        description: z.string(),
+        username: z.string(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const { username } = input;
+      const baseSlug = slugify(input.name);
+      let slug = baseSlug;
+      let attempt = 1;
+      while (
+        await prisma.project.findUnique({
+          where: { username_slug: { username, slug } },
+        })
+      ) {
+        slug = `${baseSlug}-${attempt++}`;
+      }
       return prisma.project.create({
         data: {
           userId: ctx.userId,
+          username,
           name: input.name,
           description: input.description,
+          slug,
         },
+      });
+    }),
+
+  publish: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { published: true },
+      });
+    }),
+
+  unpublish: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { published: false },
       });
     }),
 
@@ -79,6 +117,21 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
+  getBySlug: publicProcedure
+    .input(z.object({ username: z.string(), slug: z.string() }))
+    .query(async ({ input }) => {
+      return prisma.project.findUnique({
+        where: {
+          username_slug: { username: input.username, slug: input.slug },
+          published: true,
+        },
+        include: {
+          documents: { orderBy: { order: "asc" } },
+          diagrams: { orderBy: { order: "asc" } },
+        },
+      });
+    }),
+
   delete: authProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -90,9 +143,28 @@ export const projectsRouter = createTRPCRouter({
   updateName: authProcedure
     .input(z.object({ id: z.string(), name: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const project = await prisma.project.findFirst({
+        where: { id: input.id, userId: ctx.userId },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const baseSlug = slugify(input.name);
+      let slug = baseSlug;
+      let attempt = 1;
+      while (
+        await prisma.project.findUnique({
+          where: {
+            username_slug: { username: project.username, slug },
+            NOT: { id: input.id },
+          },
+        })
+      ) {
+        slug = `${baseSlug}-${attempt++}`;
+      }
+
       return prisma.project.update({
         where: { id: input.id, userId: ctx.userId },
-        data: { name: input.name },
+        data: { name: input.name, slug },
       });
     }),
 

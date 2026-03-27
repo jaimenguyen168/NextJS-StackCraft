@@ -14,6 +14,7 @@ const t = initTRPC.create({
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 export const baseProcedure = t.procedure;
+export const publicProcedure = baseProcedure;
 
 export const authProcedure = baseProcedure.use(async ({ next }) => {
   const { userId } = await auth();

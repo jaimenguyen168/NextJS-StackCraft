@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCreateProject } from "@/trpc/hooks/use-projects";
+import { useUser } from "@clerk/nextjs";
+import { createUsername } from "@/lib/utils";
 
 const DashboardInputPanel = () => {
   const [text, setText] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const createProject = useCreateProject();
+  const { user } = useUser();
 
   useEffect(() => {
     const syncPrompt = () => {
@@ -26,7 +29,11 @@ const DashboardInputPanel = () => {
     if (!trimmed) return;
 
     createProject.mutate(
-      { name: "Untitled Project", description: trimmed },
+      {
+        name: "Untitled Project",
+        description: trimmed,
+        username: createUsername(user),
+      },
       {
         onSuccess: (project) => {
           router.push(`/projects/${project.id}`);
