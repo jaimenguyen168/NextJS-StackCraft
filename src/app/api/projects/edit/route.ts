@@ -3,7 +3,6 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
-import { DocumentType, DiagramType } from "@/generated/prisma/enums";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
@@ -61,7 +60,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown fences.
 Format:
 {
   "edits": [{ "id": "section_id", "type": "document" | "diagram", "instruction": "specific edit instruction" }],
-  "creates": [{ "type": "document" | "diagram", "title": "Section Title", "diagramType": "ARCHITECTURE | ERD | SEQUENCE | FLOWCHART | null", "documentType": "OVERVIEW | TECH_STACK | TIMELINE | API_STRUCTURE | TASKS | null", "instruction": "what to generate" }],
+  "creates": [{ "type": "document" | "diagram", "title": "Section Title", "sectionType": "a short snake_case identifier e.g. overview, tech_stack, security, deployment, flowchart, erd, sequence", "instruction": "what to generate" }],
   "deletes": [{ "id": "section_id", "type": "document" | "diagram", "title": "section title" }]
 }
 
@@ -70,7 +69,7 @@ Rules:
 - If the user references an existing section by name for changes → it's an EDIT
 - If the user says "remove", "delete", "get rid of" etc → it's a DELETE
 - Never add a create entry that matches an existing section title
-- For creates: set diagramType if it's a diagram (ARCHITECTURE, ERD, SEQUENCE, FLOWCHART), set documentType if it's a document, otherwise null
+- sectionType should be a short snake_case string describing the content type — be creative, there are no restrictions
 - All arrays can be empty if nothing matches`,
       prompt: `User request: "${prompt}"
 
@@ -89,8 +88,7 @@ Return the JSON object.`,
       creates: {
         type: "document" | "diagram";
         title: string;
-        diagramType: string | null;
-        documentType: string | null;
+        sectionType: string;
         instruction: string;
       }[];
       deletes: { id: string; type: "document" | "diagram"; title: string }[];
@@ -199,7 +197,7 @@ Return the JSON object.`,
           const newDoc = await prisma.document.create({
             data: {
               projectId,
-              type: (item.documentType ?? "OVERVIEW") as DocumentType,
+              type: item.sectionType,
               title: item.title,
               content: content.trim(),
               order: maxOrder + 1,
@@ -223,7 +221,7 @@ Return the JSON object.`,
           const newDiagram = await prisma.diagram.create({
             data: {
               projectId,
-              type: (item.diagramType ?? "FLOWCHART") as DiagramType,
+              type: item.sectionType,
               title: item.title,
               content: content.trim(),
               order: maxOrder + 1,

@@ -2,7 +2,6 @@ import { z } from "zod";
 import { createTRPCRouter, authProcedure, publicProcedure } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
-import { DiagramType, DocumentType } from "@/generated/prisma/enums";
 import { slugify } from "@/lib/utils";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -376,7 +375,7 @@ export const projectsRouter = createTRPCRouter({
                 projectId: input.projectId,
                 title: d.title,
                 content: d.content,
-                type: d.type as DocumentType,
+                type: d.type as string,
                 order: d.order,
               },
             }),
@@ -390,7 +389,7 @@ export const projectsRouter = createTRPCRouter({
                 projectId: input.projectId,
                 title: d.title,
                 content: d.content,
-                type: d.type as DiagramType,
+                type: d.type as string,
                 order: d.order,
               },
             }),
