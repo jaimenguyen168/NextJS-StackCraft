@@ -5,13 +5,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HistoryIcon, ListIcon } from "lucide-react";
 import { ProjectOutline } from "./project-outline";
 import { ProjectHistory } from "@/features/projects/components/project-history";
+import {
+  ContentBlockState,
+  SectionState,
+} from "@/features/projects/contexts/project-snapshot-context";
 
 interface ProjectSidePanelProps {
   project: {
     id: string;
     name: string;
-    documents: { id: string; title: string; content: string }[];
-    diagrams: { id: string; title: string; content: string }[];
+    contentBlocks: ContentBlockState[];
+    sections: SectionState[];
   };
 }
 

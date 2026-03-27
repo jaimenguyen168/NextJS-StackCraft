@@ -27,7 +27,6 @@ export function useProject(projectId: string) {
 export function useCreateProject() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
     trpc.projects.create.mutationOptions({
       onSuccess: () => {
@@ -37,11 +36,9 @@ export function useCreateProject() {
   );
 }
 
-// add to use-projects.ts
 export function useUpdateProjectName(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
     trpc.projects.updateName.mutationOptions({
       onSuccess: () => {
@@ -54,12 +51,11 @@ export function useUpdateProjectName(projectId: string) {
   );
 }
 
-export function useUpdateDocument(projectId: string) {
+export function useUpdateBlock(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
-    trpc.projects.updateDocument.mutationOptions({
+    trpc.projects.updateBlock.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
@@ -72,12 +68,11 @@ export function useUpdateDocument(projectId: string) {
   );
 }
 
-export function useUpdateDiagram(projectId: string) {
+export function useDeleteBlock(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
-    trpc.projects.updateDiagram.mutationOptions({
+    trpc.projects.deleteBlock.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
@@ -90,30 +85,50 @@ export function useUpdateDiagram(projectId: string) {
   );
 }
 
-export function useDeleteDocument(projectId: string) {
+export function useCreateSection(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
-    trpc.projects.deleteDocument.mutationOptions({
-      onSuccess: () => {
+    trpc.projects.createSection.mutationOptions({
+      onSuccess: () =>
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
-        );
-        queryClient.invalidateQueries(
-          trpc.projects.getChat.queryOptions({ projectId }),
-        );
-      },
+        ),
     }),
   );
 }
 
-export function useDeleteDiagram(projectId: string) {
+export function useUpdateSection(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
-    trpc.projects.deleteDiagram.mutationOptions({
+    trpc.projects.updateSection.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
+    }),
+  );
+}
+
+export function useDeleteSection(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteSection.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
+    }),
+  );
+}
+
+export function useAssignBlockToSection(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.assignBlockToSection.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
@@ -129,7 +144,6 @@ export function useDeleteDiagram(projectId: string) {
 export function useRestoreProject(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
   return useMutation(
     trpc.projects.restore.mutationOptions({
       onSuccess: () => {

@@ -4,33 +4,44 @@ import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { slugify } from "@/lib/utils";
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
 async function getProjectSnapshot(projectId: string) {
   const project = await prisma.project.findFirst({
     where: { id: projectId },
     include: {
-      documents: { orderBy: { order: "asc" } },
-      diagrams: { orderBy: { order: "asc" } },
+      contentBlocks: { orderBy: { order: "asc" } },
+      sections: {
+        where: { parentId: null },
+        orderBy: { order: "asc" },
+        include: { children: { orderBy: { order: "asc" } } },
+      },
     },
   });
 
   return {
     description: project?.description ?? "",
-    documents:
-      project?.documents.map((d) => ({
-        id: d.id,
-        title: d.title,
-        type: d.type,
-        content: d.content,
-        order: d.order,
+    contentBlocks:
+      project?.contentBlocks.map((b) => ({
+        id: b.id,
+        kind: b.kind,
+        type: b.type,
+        title: b.title,
+        content: b.content,
+        body: b.body,
+        order: b.order,
+        sectionId: b.sectionId,
       })) ?? [],
-    diagrams:
-      project?.diagrams.map((d) => ({
-        id: d.id,
-        title: d.title,
-        type: d.type,
-        content: d.content,
-        order: d.order,
+    sections:
+      project?.sections.map((s) => ({
+        id: s.id,
+        title: s.title,
+        order: s.order,
+        parentId: s.parentId,
+        children: s.children.map((c) => ({
+          id: c.id,
+          title: c.title,
+          order: c.order,
+          parentId: c.parentId,
+        })),
       })) ?? [],
   };
 }
@@ -40,8 +51,6 @@ async function getOrCreateChat(projectId: string) {
   if (!chat) chat = await prisma.projectChat.create({ data: { projectId } });
   return chat;
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
 
 export const projectsRouter = createTRPCRouter({
   create: authProcedure
@@ -96,10 +105,7 @@ export const projectsRouter = createTRPCRouter({
   getAll: authProcedure.query(async ({ ctx }) => {
     return prisma.project.findMany({
       where: { userId: ctx.userId },
-      include: {
-        diagrams: { orderBy: { order: "asc" } },
-        documents: { orderBy: { order: "asc" } },
-      },
+      include: { contentBlocks: { orderBy: { order: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
   }),
@@ -110,8 +116,12 @@ export const projectsRouter = createTRPCRouter({
       return prisma.project.findFirst({
         where: { id: input.id, userId: ctx.userId },
         include: {
-          diagrams: { orderBy: { order: "asc" } },
-          documents: { orderBy: { order: "asc" } },
+          contentBlocks: { orderBy: { order: "asc" } },
+          sections: {
+            where: { parentId: null },
+            orderBy: { order: "asc" },
+            include: { children: { orderBy: { order: "asc" } } },
+          },
         },
       });
     }),
@@ -124,10 +134,7 @@ export const projectsRouter = createTRPCRouter({
           username_slug: { username: input.username, slug: input.slug },
           published: true,
         },
-        include: {
-          documents: { orderBy: { order: "asc" } },
-          diagrams: { orderBy: { order: "asc" } },
-        },
+        include: { contentBlocks: { orderBy: { order: "asc" } } },
       });
     }),
 
@@ -146,7 +153,6 @@ export const projectsRouter = createTRPCRouter({
         where: { id: input.id, userId: ctx.userId },
       });
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
-
       const baseSlug = slugify(input.name);
       let slug = baseSlug;
       let attempt = 1;
@@ -160,38 +166,38 @@ export const projectsRouter = createTRPCRouter({
       ) {
         slug = `${baseSlug}-${attempt++}`;
       }
-
       return prisma.project.update({
-        where: { id: input.id, userId: ctx.userId },
+        where: { id: input.id },
         data: { name: input.name, slug },
       });
     }),
 
-  updateDocument: authProcedure
-    .input(z.object({ id: z.string(), content: z.string() }))
+  updateBlock: authProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        content: z.string(),
+        body: z.string().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const document = await prisma.document.findFirst({
+      const block = await prisma.contentBlock.findFirst({
         where: { id: input.id, project: { userId: ctx.userId } },
       });
-      if (!document)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Document not found",
-        });
+      if (!block) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const updated = await prisma.document.update({
+      const updated = await prisma.contentBlock.update({
         where: { id: input.id },
-        data: { content: input.content },
+        data: { content: input.content, body: input.body },
       });
 
-      const chat = await getOrCreateChat(document.projectId);
-      const projectState = await getProjectSnapshot(document.projectId);
-
+      const chat = await getOrCreateChat(block.projectId);
+      const projectState = await getProjectSnapshot(block.projectId);
       await prisma.chatMessage.create({
         data: {
           chatId: chat.id,
           role: "USER",
-          content: `Manually edited "${document.title}"`,
+          content: `Manually edited "${block.title}"`,
           snapshot: { projectState },
         },
       });
@@ -199,31 +205,114 @@ export const projectsRouter = createTRPCRouter({
       return updated;
     }),
 
-  updateDiagram: authProcedure
-    .input(z.object({ id: z.string(), content: z.string() }))
+  deleteBlock: authProcedure
+    .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const diagram = await prisma.diagram.findFirst({
+      const block = await prisma.contentBlock.findFirst({
         where: { id: input.id, project: { userId: ctx.userId } },
       });
-      if (!diagram)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Diagram not found",
-        });
+      if (!block) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const updated = await prisma.diagram.update({
-        where: { id: input.id },
-        data: { content: input.content },
-      });
+      await prisma.contentBlock.delete({ where: { id: input.id } });
 
-      const chat = await getOrCreateChat(diagram.projectId);
-      const projectState = await getProjectSnapshot(diagram.projectId);
-
+      const chat = await getOrCreateChat(block.projectId);
+      const projectState = await getProjectSnapshot(block.projectId);
       await prisma.chatMessage.create({
         data: {
           chatId: chat.id,
           role: "USER",
-          content: `Manually edited "${diagram.title}"`,
+          content: `Deleted "${block.title}"`,
+          snapshot: { projectState },
+        },
+      });
+
+      return { id: input.id };
+    }),
+
+  createSection: authProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        title: z.string(),
+        parentId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await prisma.project.findFirst({
+        where: { id: input.projectId, userId: ctx.userId },
+        include: { sections: true },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const maxOrder = Math.max(0, ...project.sections.map((s) => s.order));
+      return prisma.section.create({
+        data: {
+          projectId: input.projectId,
+          title: input.title,
+          parentId: input.parentId ?? null,
+          order: maxOrder + 1,
+        },
+      });
+    }),
+
+  updateSection: authProcedure
+    .input(z.object({ id: z.string(), title: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const section = await prisma.section.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!section) throw new TRPCError({ code: "NOT_FOUND" });
+      return prisma.section.update({
+        where: { id: input.id },
+        data: { title: input.title },
+      });
+    }),
+
+  deleteSection: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const section = await prisma.section.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!section) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await prisma.contentBlock.updateMany({
+        where: { sectionId: input.id },
+        data: { sectionId: null },
+      });
+      return prisma.section.delete({ where: { id: input.id } });
+    }),
+
+  assignBlockToSection: authProcedure
+    .input(z.object({ blockId: z.string(), sectionId: z.string().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const block = await prisma.contentBlock.findFirst({
+        where: { id: input.blockId, project: { userId: ctx.userId } },
+      });
+      if (!block) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const updated = await prisma.contentBlock.update({
+        where: { id: input.blockId },
+        data: { sectionId: input.sectionId },
+      });
+
+      let message = "";
+      if (input.sectionId) {
+        const section = await prisma.section.findUnique({
+          where: { id: input.sectionId },
+        });
+        message = `Assigned "${block.title}" to section "${section?.title ?? input.sectionId}"`;
+      } else {
+        message = `Removed "${block.title}" from its section`;
+      }
+
+      const chat = await getOrCreateChat(block.projectId);
+      const projectState = await getProjectSnapshot(block.projectId);
+      await prisma.chatMessage.create({
+        data: {
+          chatId: chat.id,
+          role: "USER",
+          content: message,
           snapshot: { projectState },
         },
       });
@@ -231,54 +320,152 @@ export const projectsRouter = createTRPCRouter({
       return updated;
     }),
 
-  deleteDocument: authProcedure
-    .input(z.object({ id: z.string() }))
+  restore: authProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        snapshot: z.object({
+          description: z.string().optional(),
+          contentBlocks: z.array(
+            z.object({
+              id: z.string(),
+              kind: z.string(),
+              type: z.string(),
+              title: z.string(),
+              content: z.string(),
+              body: z.string().nullable().optional(),
+              order: z.number(),
+              sectionId: z.string().nullable().optional(),
+            }),
+          ),
+          sections: z
+            .array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                order: z.number(),
+                parentId: z.string().nullable().optional(),
+                children: z
+                  .array(
+                    z.object({
+                      id: z.string(),
+                      title: z.string(),
+                      order: z.number(),
+                      parentId: z.string().nullable().optional(),
+                    }),
+                  )
+                  .optional(),
+              }),
+            )
+            .optional(),
+        }),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const document = await prisma.document.findFirst({
-        where: { id: input.id, project: { userId: ctx.userId } },
+      const project = await prisma.project.findFirst({
+        where: { id: input.projectId, userId: ctx.userId },
+        include: { contentBlocks: true, sections: true },
       });
-      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-      await prisma.document.delete({ where: { id: input.id } });
+      const snapshotBlockIds = new Set(
+        input.snapshot.contentBlocks.map((b) => b.id),
+      );
+      const currentBlockIds = new Set(project.contentBlocks.map((b) => b.id));
 
-      const chat = await getOrCreateChat(document.projectId);
-      const projectState = await getProjectSnapshot(document.projectId);
+      const snapshotSections = input.snapshot.sections ?? [];
+      const allSnapshotSections = snapshotSections.flatMap((s) => [
+        s,
+        ...(s.children ?? []),
+      ]);
+      const snapshotSectionIds = new Set(allSnapshotSections.map((s) => s.id));
+      const currentSectionIds = new Set(project.sections.map((s) => s.id));
 
+      // Restore sections first (blocks reference them)
+      await Promise.all([
+        // Delete sections not in snapshot
+        ...project.sections
+          .filter((s) => !snapshotSectionIds.has(s.id))
+          .map((s) => prisma.section.delete({ where: { id: s.id } })),
+
+        // Update existing sections
+        ...allSnapshotSections
+          .filter((s) => currentSectionIds.has(s.id))
+          .map((s) =>
+            prisma.section.update({
+              where: { id: s.id },
+              data: { title: s.title, order: s.order },
+            }),
+          ),
+
+        // Recreate deleted sections
+        ...allSnapshotSections
+          .filter((s) => !currentSectionIds.has(s.id))
+          .map((s) =>
+            prisma.section.create({
+              data: {
+                id: s.id,
+                projectId: input.projectId,
+                title: s.title,
+                order: s.order,
+                parentId: s.parentId ?? null,
+              },
+            }),
+          ),
+      ]);
+
+      // Restore blocks
+      await Promise.all([
+        ...project.contentBlocks
+          .filter((b) => !snapshotBlockIds.has(b.id))
+          .map((b) => prisma.contentBlock.delete({ where: { id: b.id } })),
+
+        ...input.snapshot.contentBlocks
+          .filter((b) => currentBlockIds.has(b.id))
+          .map((b) =>
+            prisma.contentBlock.update({
+              where: { id: b.id },
+              data: {
+                content: b.content,
+                title: b.title,
+                body: b.body,
+                order: b.order,
+                sectionId: b.sectionId ?? null,
+              },
+            }),
+          ),
+
+        ...input.snapshot.contentBlocks
+          .filter((b) => !currentBlockIds.has(b.id))
+          .map((b) =>
+            prisma.contentBlock.create({
+              data: {
+                id: b.id,
+                projectId: input.projectId,
+                kind: b.kind as "DOCUMENT" | "DIAGRAM",
+                type: b.type,
+                title: b.title,
+                content: b.content,
+                body: b.body,
+                order: b.order,
+                sectionId: b.sectionId ?? null,
+              },
+            }),
+          ),
+      ]);
+
+      const chat = await getOrCreateChat(input.projectId);
+      const projectState = await getProjectSnapshot(input.projectId);
       await prisma.chatMessage.create({
         data: {
           chatId: chat.id,
           role: "USER",
-          content: `Deleted "${document.title}"`,
+          content: "Restored project to a previous snapshot",
           snapshot: { projectState },
         },
       });
 
-      return { id: input.id };
-    }),
-
-  deleteDiagram: authProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      const diagram = await prisma.diagram.findFirst({
-        where: { id: input.id, project: { userId: ctx.userId } },
-      });
-      if (!diagram) throw new TRPCError({ code: "NOT_FOUND" });
-
-      await prisma.diagram.delete({ where: { id: input.id } });
-
-      const chat = await getOrCreateChat(diagram.projectId);
-      const projectState = await getProjectSnapshot(diagram.projectId);
-
-      await prisma.chatMessage.create({
-        data: {
-          chatId: chat.id,
-          role: "USER",
-          content: `Deleted "${diagram.title}"`,
-          snapshot: { projectState },
-        },
-      });
-
-      return { id: input.id };
+      return { ok: true };
     }),
 
   getChat: authProcedure
@@ -293,121 +480,6 @@ export const projectsRouter = createTRPCRouter({
         where: { projectId: input.projectId },
         include: { messages: { orderBy: { createdAt: "asc" } } },
       });
-
       return chat?.messages ?? [];
-    }),
-
-  restore: authProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        snapshot: z.object({
-          description: z.string().optional(),
-          documents: z.array(
-            z.object({
-              id: z.string(),
-              title: z.string(),
-              content: z.string(),
-              type: z.string(),
-              order: z.number(),
-            }),
-          ),
-          diagrams: z.array(
-            z.object({
-              id: z.string(),
-              title: z.string(),
-              content: z.string(),
-              type: z.string(),
-              order: z.number(),
-            }),
-          ),
-        }),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const project = await prisma.project.findFirst({
-        where: { id: input.projectId, userId: ctx.userId },
-        include: { documents: true, diagrams: true },
-      });
-      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const snapshotDocIds = new Set(input.snapshot.documents.map((d) => d.id));
-      const snapshotDiagramIds = new Set(
-        input.snapshot.diagrams.map((d) => d.id),
-      );
-      const currentDocIds = new Set(project.documents.map((d) => d.id));
-      const currentDiagramIds = new Set(project.diagrams.map((d) => d.id));
-
-      await Promise.all([
-        // Delete docs/diagrams not in snapshot
-        ...project.documents
-          .filter((d) => !snapshotDocIds.has(d.id))
-          .map((d) => prisma.document.delete({ where: { id: d.id } })),
-        ...project.diagrams
-          .filter((d) => !snapshotDiagramIds.has(d.id))
-          .map((d) => prisma.diagram.delete({ where: { id: d.id } })),
-
-        // Update existing docs/diagrams
-        ...input.snapshot.documents
-          .filter((d) => currentDocIds.has(d.id))
-          .map((d) =>
-            prisma.document.update({
-              where: { id: d.id },
-              data: { content: d.content, title: d.title, order: d.order },
-            }),
-          ),
-        ...input.snapshot.diagrams
-          .filter((d) => currentDiagramIds.has(d.id))
-          .map((d) =>
-            prisma.diagram.update({
-              where: { id: d.id },
-              data: { content: d.content, title: d.title, order: d.order },
-            }),
-          ),
-
-        // Recreate deleted docs/diagrams
-        ...input.snapshot.documents
-          .filter((d) => !currentDocIds.has(d.id))
-          .map((d) =>
-            prisma.document.create({
-              data: {
-                id: d.id,
-                projectId: input.projectId,
-                title: d.title,
-                content: d.content,
-                type: d.type as string,
-                order: d.order,
-              },
-            }),
-          ),
-        ...input.snapshot.diagrams
-          .filter((d) => !currentDiagramIds.has(d.id))
-          .map((d) =>
-            prisma.diagram.create({
-              data: {
-                id: d.id,
-                projectId: input.projectId,
-                title: d.title,
-                content: d.content,
-                type: d.type as string,
-                order: d.order,
-              },
-            }),
-          ),
-      ]);
-
-      const chat = await getOrCreateChat(input.projectId);
-      const projectState = await getProjectSnapshot(input.projectId);
-
-      await prisma.chatMessage.create({
-        data: {
-          chatId: chat.id,
-          role: "USER",
-          content: "Restored project to a previous snapshot",
-          snapshot: { projectState },
-        },
-      });
-
-      return { ok: true };
     }),
 });

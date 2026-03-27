@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MermaidDiagram from "@/components/mermaid-diagram";
+import Link from "next/link";
 
 interface PublicProjectViewProps {
   username: string;
@@ -30,36 +31,40 @@ export default function PublicProjectView({
           <p className="text-xs text-muted-foreground">@{username}</p>
           <h1 className="text-lg font-semibold">{project.name}</h1>
         </div>
-        <a
+        <Link
           href="/"
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           Built with StackCraft
-        </a>
+        </Link>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-10">
         <p className="text-sm text-muted-foreground">{project.description}</p>
 
-        {project.documents.map((doc) => (
-          <div key={doc.id} className="space-y-3">
+        {project.contentBlocks.map((block) => (
+          <div key={block.id} className="space-y-3">
             <h2 className="text-base font-semibold border-b pb-2">
-              {doc.title}
+              {block.title}
             </h2>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {doc.content}
-              </ReactMarkdown>
-            </div>
-          </div>
-        ))}
-
-        {project.diagrams.map((diagram) => (
-          <div key={diagram.id} className="space-y-3">
-            <h2 className="text-base font-semibold border-b pb-2">
-              {diagram.title}
-            </h2>
-            <MermaidDiagram content={diagram.content} />
+            {block.kind === "DIAGRAM" ? (
+              <div className="space-y-3">
+                <MermaidDiagram content={block.content} />
+                {block.body && (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {block.body}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {block.content}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
         ))}
       </main>

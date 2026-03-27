@@ -17,13 +17,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ProjectHistory } from "@/features/projects/components/project-history";
+import {
+  ContentBlockState,
+  SectionState,
+} from "@/features/projects/contexts/project-snapshot-context";
 
 interface ProjectChatPanelProps {
   project: {
     id: string;
     name: string;
-    documents: { id: string; title: string; content: string }[];
-    diagrams: { id: string; title: string; content: string }[];
+    contentBlocks: ContentBlockState[];
+    sections: SectionState[];
   };
 }
 
@@ -38,15 +42,11 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
   const router = useRouter();
 
   useEffect(() => {
-    const syncPrompt = () => {
-      const p = searchParams.get("prompt");
-      if (p) {
-        setPrompt(decodeURIComponent(p));
-        // Clear the param from URL without navigation
-        router.replace(`/projects/${project.id}`, { scroll: false });
-      }
-    };
-    syncPrompt();
+    const p = searchParams.get("prompt");
+    if (p) {
+      setPrompt(decodeURIComponent(p));
+      router.replace(`/projects/${project.id}`, { scroll: false });
+    }
   }, [searchParams]);
 
   const handleScrollTo = (id: string) => {
@@ -79,7 +79,6 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       await queryClient.refetchQueries({
         queryKey: trpc.projects.getById.queryKey({ id: project.id }),
       });
-
       await queryClient.invalidateQueries({
         queryKey: trpc.projects.getChat.queryKey({ projectId: project.id }),
       });
