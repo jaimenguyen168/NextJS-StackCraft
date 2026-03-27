@@ -36,3 +36,110 @@ export function useCreateProject() {
     }),
   );
 }
+
+// add to use-projects.ts
+export function useUpdateProjectName(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateName.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateDocument(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateDocument.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useUpdateDiagram(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.updateDiagram.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useDeleteDocument(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.deleteDocument.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useDeleteDiagram(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.deleteDiagram.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useRestoreProject(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.projects.restore.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
