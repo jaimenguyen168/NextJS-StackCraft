@@ -2,22 +2,37 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
-interface ProjectState {
+export interface ContentBlockState {
+  id: string;
+  kind: string;
+  type: string;
+  title: string;
+  content: string;
+  body?: string | null;
+  order: number;
+  sectionId?: string | null;
+}
+
+export interface SectionChildState {
+  id: string;
+  title: string;
+  order: number;
+  parentId?: string | null;
+  children: SectionChildState[];
+}
+
+export interface SectionState {
+  id: string;
+  title: string;
+  order: number;
+  parentId?: string | null;
+  children: SectionChildState[];
+}
+
+export interface ProjectState {
   description: string;
-  documents: {
-    id: string;
-    title: string;
-    content: string;
-    type: string;
-    order: number;
-  }[];
-  diagrams: {
-    id: string;
-    title: string;
-    content: string;
-    type: string;
-    order: number;
-  }[];
+  contentBlocks: ContentBlockState[];
+  sections: SectionState[];
 }
 
 interface ProjectSnapshotContextValue {
@@ -30,7 +45,6 @@ const ProjectSnapshotContext =
 
 export function ProjectSnapshotProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<ProjectState | null>(null);
-
   return (
     <ProjectSnapshotContext.Provider value={{ snapshot, setSnapshot }}>
       {children}
@@ -40,12 +54,9 @@ export function ProjectSnapshotProvider({ children }: { children: ReactNode }) {
 
 export function useProjectSnapshot() {
   const context = useContext(ProjectSnapshotContext);
-  if (!context) {
+  if (!context)
     throw new Error(
       "useProjectSnapshot must be used within a ProjectSnapshotProvider",
     );
-  }
   return context;
 }
-
-export type { ProjectState };

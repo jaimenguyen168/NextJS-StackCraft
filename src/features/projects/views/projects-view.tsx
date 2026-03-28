@@ -7,16 +7,20 @@ import { PlusIcon } from "lucide-react";
 import ProjectCard from "@/features/projects/components/project-card";
 import { useCreateProject, useProjects } from "@/trpc/hooks/use-projects";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { createUsername } from "@/lib/utils";
 
 const ProjectsView = () => {
   const router = useRouter();
   const { projects } = useProjects();
   const createProject = useCreateProject();
+  const { user } = useUser();
 
   const handleCreate = () => {
     createProject.mutate({
       name: "Untitled Project",
       description: "A new project",
+      username: createUsername(user),
     });
   };
 
@@ -51,7 +55,7 @@ const ProjectsView = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {projects.map((project) => (
               <ProjectCard
                 key={project.id}

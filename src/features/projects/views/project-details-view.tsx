@@ -8,6 +8,7 @@ import ProjectChatPanel from "@/features/projects/components/project-chat-panel"
 import ProjectSidePanel from "@/features/projects/components/project-side-panel";
 import {
   ProjectSnapshotProvider,
+  SectionState,
   useProjectSnapshot,
 } from "@/features/projects/contexts/project-snapshot-context";
 import { Suspense } from "react";
@@ -34,11 +35,29 @@ function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
   const isGenerating =
     project.status === "GENERATING" || project.status === "PENDING";
 
-  const displayProject = snapshot ?? {
+  const mappedSections: SectionState[] = project.sections.map((s) => ({
+    id: s.id,
+    title: s.title,
+    order: s.order,
+    parentId: s.parentId,
+    children: s.children.map((c) => ({
+      id: c.id,
+      title: c.title,
+      order: c.order,
+      parentId: c.parentId,
+      children: [],
+    })),
+  }));
+
+  const mappedProject = {
+    id: project.id,
+    name: project.name,
     description: project.description,
-    documents: project.documents,
-    diagrams: project.diagrams,
+    contentBlocks: project.contentBlocks,
+    sections: mappedSections,
   };
+
+  const displayProject = snapshot ?? mappedProject;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -66,10 +85,10 @@ function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background to-transparent" />
           </div>
           <Suspense fallback={null}>
-            <ProjectChatPanel project={project} />
+            <ProjectChatPanel project={mappedProject} />
           </Suspense>
         </div>
-        <ProjectSidePanel project={project} />
+        <ProjectSidePanel project={mappedProject} />
       </div>
     </div>
   );

@@ -3,7 +3,6 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
-import { DocumentType, DiagramType } from "@/generated/prisma/enums";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, userId },
-      include: { documents: true, diagrams: true },
+      include: { contentBlocks: true },
     });
 
     if (!project) {
@@ -33,9 +32,7 @@ export async function POST(request: Request) {
     }
 
     let chat = await prisma.projectChat.findFirst({ where: { projectId } });
-    if (!chat) {
-      chat = await prisma.projectChat.create({ data: { projectId } });
-    }
+    if (!chat) chat = await prisma.projectChat.create({ data: { projectId } });
 
     await prisma.chatMessage.create({
       data: { chatId: chat.id, role: "USER", content: prompt },
@@ -47,10 +44,12 @@ export async function POST(request: Request) {
     });
     const lastSnapshot = lastMessage?.snapshot ?? null;
 
-    const sectionList = [
-      ...project.documents.map((d) => `Document: "${d.title}" (id: ${d.id})`),
-      ...project.diagrams.map((d) => `Diagram: "${d.title}" (id: ${d.id})`),
-    ].join("\n");
+    const blockList = project.contentBlocks
+      .map(
+        (b) =>
+          `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id})`,
+      )
+      .join("\n");
 
     const { text: intentJson } = await generateText({
       model,
@@ -60,40 +59,33 @@ Respond ONLY with a valid JSON object. No explanation, no markdown fences.
 
 Format:
 {
-  "edits": [{ "id": "section_id", "type": "document" | "diagram", "instruction": "specific edit instruction" }],
-  "creates": [{ "type": "document" | "diagram", "title": "Section Title", "diagramType": "ARCHITECTURE | ERD | SEQUENCE | FLOWCHART | null", "documentType": "OVERVIEW | TECH_STACK | TIMELINE | API_STRUCTURE | TASKS | null", "instruction": "what to generate" }],
-  "deletes": [{ "id": "section_id", "type": "document" | "diagram", "title": "section title" }]
+  "edits": [{ "id": "block_id", "kind": "DOCUMENT" | "DIAGRAM", "instruction": "specific edit instruction" }],
+  "creates": [{ "kind": "DOCUMENT" | "DIAGRAM", "title": "Section Title", "type": "snake_case_type e.g. overview, erd, flowchart, security", "instruction": "what to generate" }],
+  "deletes": [{ "id": "block_id", "title": "section title" }]
 }
 
 Rules:
-- If the user says "add", "create", "generate a new" etc → it's a CREATE
-- If the user references an existing section by name for changes → it's an EDIT
-- If the user says "remove", "delete", "get rid of" etc → it's a DELETE
-- Never add a create entry that matches an existing section title
-- For creates: set diagramType if it's a diagram (ARCHITECTURE, ERD, SEQUENCE, FLOWCHART), set documentType if it's a document, otherwise null
+- If the user says "add", "create", "generate a new" etc → CREATE
+- If the user references an existing section by name for changes → EDIT
+- If the user says "remove", "delete", "get rid of" etc → DELETE
+- Never create a section that matches an existing title
 - All arrays can be empty if nothing matches`,
-      prompt: `User request: "${prompt}"
-
-Existing sections:
-${sectionList}
-
-Return the JSON object.`,
+      prompt: `User request: "${prompt}"\n\nExisting sections:\n${blockList}\n\nReturn the JSON object.`,
     });
 
     let parsed: {
       edits: {
         id: string;
-        type: "document" | "diagram";
+        kind: "DOCUMENT" | "DIAGRAM";
         instruction: string;
       }[];
       creates: {
-        type: "document" | "diagram";
+        kind: "DOCUMENT" | "DIAGRAM";
         title: string;
-        diagramType: string | null;
-        documentType: string | null;
+        type: string;
         instruction: string;
       }[];
-      deletes: { id: string; type: "document" | "diagram"; title: string }[];
+      deletes: { id: string; title: string }[];
     } = { edits: [], creates: [], deletes: [] };
 
     try {
@@ -111,7 +103,7 @@ Return the JSON object.`,
         },
       });
       return NextResponse.json(
-        { error: "Failed to parse intent", raw: intentJson },
+        { error: "Failed to parse intent" },
         { status: 500 },
       );
     }
@@ -130,132 +122,94 @@ Return the JSON object.`,
         },
       });
       return NextResponse.json({
-        message: "No sections were identified. Try being more specific.",
+        message: "No sections were identified.",
         edited: [],
         created: [],
         deleted: [],
       });
     }
 
-    const edited: { id: string; type: string; title: string }[] = [];
-    const created: { id: string; type: string; title: string }[] = [];
-    const deleted: { id: string; type: string; title: string }[] = [];
+    const edited: { id: string; title: string }[] = [];
+    const created: { id: string; title: string }[] = [];
+    const deleted: { id: string; title: string }[] = [];
 
     await Promise.all([
-      // Edits
       ...parsed.edits.map(async (target) => {
-        if (target.type === "document") {
-          const doc = project.documents.find((d) => d.id === target.id);
-          if (!doc) return;
+        const block = project.contentBlocks.find((b) => b.id === target.id);
+        if (!block) return;
 
+        if (block.kind === "DOCUMENT") {
           const { text: newContent } = await generateText({
             model,
-            system: `You are a technical writing agent. Apply the edit instruction to the document content and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
-            prompt: `Current content of "${doc.title}":\n${doc.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
+            system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
+            prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
           });
-
-          await prisma.document.update({
-            where: { id: doc.id },
+          await prisma.contentBlock.update({
+            where: { id: block.id },
             data: { content: newContent.trim() },
           });
-          edited.push({ id: doc.id, type: "document", title: doc.title });
-        }
-
-        if (target.type === "diagram") {
-          const diagram = project.diagrams.find((d) => d.id === target.id);
-          if (!diagram) return;
-
+        } else {
           const { text: newContent } = await generateText({
             model,
             system: `You are a diagram editing agent. Apply the edit to the Mermaid diagram and return the full updated Mermaid code. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
-            prompt: `Current Mermaid diagram "${diagram.title}":\n${diagram.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated Mermaid code.`,
+            prompt: `Current Mermaid diagram "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated Mermaid code.`,
           });
-
-          await prisma.diagram.update({
-            where: { id: diagram.id },
+          await prisma.contentBlock.update({
+            where: { id: block.id },
             data: { content: newContent.trim() },
           });
-          edited.push({
-            id: diagram.id,
-            type: "diagram",
-            title: diagram.title,
-          });
         }
+        edited.push({ id: block.id, title: block.title });
       }),
 
-      // Creates
       ...parsed.creates.map(async (item) => {
-        if (item.type === "document") {
+        const maxOrder = Math.max(
+          0,
+          ...project.contentBlocks.map((b) => b.order),
+        );
+
+        if (item.kind === "DOCUMENT") {
           const { text: content } = await generateText({
             model,
             system: `You are a technical writing agent. Generate a new document section in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the content.`,
             prompt: `Project description: ${project.description}\n\nGenerate content for a new section titled "${item.title}".\nInstruction: ${item.instruction}`,
           });
-
-          const maxOrder = Math.max(
-            0,
-            ...project.documents.map((d) => d.order),
-          );
-          const newDoc = await prisma.document.create({
+          const newBlock = await prisma.contentBlock.create({
             data: {
               projectId,
-              type: (item.documentType ?? "OVERVIEW") as DocumentType,
+              kind: "DOCUMENT",
+              type: item.type,
               title: item.title,
               content: content.trim(),
               order: maxOrder + 1,
             },
           });
-          created.push({
-            id: newDoc.id,
-            type: "document",
-            title: newDoc.title,
-          });
-        }
-
-        if (item.type === "diagram") {
+          created.push({ id: newBlock.id, title: newBlock.title });
+        } else {
           const { text: content } = await generateText({
             model,
-            system: `You are a diagram generation agent. Generate a Mermaid diagram based on the instruction. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
+            system: `You are a diagram generation agent. Generate a Mermaid diagram. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
             prompt: `Project description: ${project.description}\n\nGenerate a new "${item.title}" diagram.\nInstruction: ${item.instruction}`,
           });
-
-          const maxOrder = Math.max(0, ...project.diagrams.map((d) => d.order));
-          const newDiagram = await prisma.diagram.create({
+          const newBlock = await prisma.contentBlock.create({
             data: {
               projectId,
-              type: (item.diagramType ?? "FLOWCHART") as DiagramType,
+              kind: "DIAGRAM",
+              type: item.type,
               title: item.title,
               content: content.trim(),
               order: maxOrder + 1,
             },
           });
-          created.push({
-            id: newDiagram.id,
-            type: "diagram",
-            title: newDiagram.title,
-          });
+          created.push({ id: newBlock.id, title: newBlock.title });
         }
       }),
 
-      // Deletes
       ...parsed.deletes.map(async (target) => {
-        if (target.type === "document") {
-          const doc = project.documents.find((d) => d.id === target.id);
-          if (!doc) return;
-          await prisma.document.delete({ where: { id: doc.id } });
-          deleted.push({ id: doc.id, type: "document", title: doc.title });
-        }
-
-        if (target.type === "diagram") {
-          const diagram = project.diagrams.find((d) => d.id === target.id);
-          if (!diagram) return;
-          await prisma.diagram.delete({ where: { id: diagram.id } });
-          deleted.push({
-            id: diagram.id,
-            type: "diagram",
-            title: diagram.title,
-          });
-        }
+        const block = project.contentBlocks.find((b) => b.id === target.id);
+        if (!block) return;
+        await prisma.contentBlock.delete({ where: { id: block.id } });
+        deleted.push({ id: block.id, title: block.title });
       }),
     ]);
 
@@ -270,10 +224,7 @@ Return the JSON object.`,
 
     const updatedProject = await prisma.project.findFirst({
       where: { id: projectId },
-      include: {
-        documents: { orderBy: { order: "asc" } },
-        diagrams: { orderBy: { order: "asc" } },
-      },
+      include: { contentBlocks: { orderBy: { order: "asc" } } },
     });
 
     await prisma.chatMessage.create({
@@ -287,19 +238,14 @@ Return the JSON object.`,
           deleted,
           projectState: {
             description: updatedProject?.description ?? "",
-            documents: updatedProject?.documents.map((d) => ({
-              id: d.id,
-              title: d.title,
-              type: d.type,
-              content: d.content,
-              order: d.order,
-            })),
-            diagrams: updatedProject?.diagrams.map((d) => ({
-              id: d.id,
-              title: d.title,
-              type: d.type,
-              content: d.content,
-              order: d.order,
+            contentBlocks: updatedProject?.contentBlocks.map((b) => ({
+              id: b.id,
+              kind: b.kind,
+              type: b.type,
+              title: b.title,
+              content: b.content,
+              body: b.body,
+              order: b.order,
             })),
           },
         },

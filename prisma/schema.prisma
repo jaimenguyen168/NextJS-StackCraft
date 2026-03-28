@@ -8,43 +8,56 @@ datasource db {
 }
 
 model Project {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   userId      String
+  username    String
   name        String
   description String
+  slug        String
+  published   Boolean @default(false)
 
-  diagrams  Diagram[]
-  documents Document[]
-  chats     ProjectChat[]
+  contentBlocks ContentBlock[]
+  sections      Section[]
+  chats         ProjectChat[]
 
   status    ProjectStatus @default(PENDING)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  @@unique([username, slug])
 }
 
-model Document {
+model Section {
   id        String  @id @default(cuid())
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  type    DocumentType
-  title   String
-  content String
-
+  title String
   order Int
+
+  parentId String?
+  parent   Section?  @relation("SectionTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Section[] @relation("SectionTree")
+
+  contentBlocks ContentBlock[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Diagram {
+model ContentBlock {
   id        String  @id @default(cuid())
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  type    DiagramType
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  kind    ContentKind
+  type    String
   title   String
   content String
+  body    String?
 
   order Int
 
@@ -68,33 +81,21 @@ model ChatMessage {
   chatId String
   chat   ProjectChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
-  role    MessageRole
-  content String
-
-  // What changed at this moment
+  role     MessageRole
+  content  String
   snapshot Json?
 
   createdAt DateTime @default(now())
 }
 
+enum ContentKind {
+  DOCUMENT
+  DIAGRAM
+}
+
 enum MessageRole {
   USER
   ASSISTANT
-}
-
-enum DocumentType {
-  OVERVIEW
-  TECH_STACK
-  TIMELINE
-  API_STRUCTURE
-  TASKS
-}
-
-enum DiagramType {
-  ARCHITECTURE
-  ERD
-  SEQUENCE
-  FLOWCHART
 }
 
 enum ProjectStatus {
