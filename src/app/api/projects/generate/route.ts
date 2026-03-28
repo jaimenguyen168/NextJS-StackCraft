@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
 
+const PRIMARY_COLOR = "oklch(0.6487 0.1538 150.3071)";
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -39,11 +41,18 @@ export async function POST(request: Request) {
       data: {
         chatId: chat.id,
         role: "USER",
-        content: `Generate full project blueprint for: "${project.description}"`,
+        content: `Bootstrap project info for: "${project.description}"`,
       },
     });
 
-    generateAll(projectId, project.description, chat.id).catch(async () => {
+    bootstrapProject(
+      projectId,
+      userId,
+      project.name,
+      project.description,
+      chat.id,
+    ).catch(async (err) => {
+      console.error("Bootstrap error:", err);
       await prisma.project.update({
         where: { id: projectId },
         data: { status: "FAILED" },
@@ -67,165 +76,252 @@ export async function POST(request: Request) {
   }
 }
 
-const sections: {
-  kind: "DOCUMENT" | "DIAGRAM";
-  type: string;
-  title: string;
-  order: number;
-  system: string;
-  prompt: (description: string) => string;
-}[] = [
-  {
-    kind: "DOCUMENT",
-    type: "overview",
-    title: "Project Overview",
-    order: 0,
-    system:
-      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
-    prompt: (d) =>
-      `Based on this project description, write a clear project overview in Markdown. Include: project goals, target users, core value proposition, and key features. Description: ${d}`,
-  },
-  {
-    kind: "DOCUMENT",
-    type: "tech_stack",
-    title: "Tech Stack",
-    order: 1,
-    system:
-      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
-    prompt: (d) =>
-      `Based on this project description, recommend a modern tech stack in Markdown. Include: frontend, backend, database, auth, hosting, and why each was chosen. Description: ${d}`,
-  },
-  {
-    kind: "DOCUMENT",
-    type: "timeline",
-    title: "Timeline",
-    order: 2,
-    system:
-      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
-    prompt: (d) =>
-      `Based on this project description, create a realistic development timeline in Markdown. Break it into phases (MVP, v1, v2) with estimated durations and milestones. Description: ${d}`,
-  },
-  {
-    kind: "DOCUMENT",
-    type: "api_structure",
-    title: "API Structure",
-    order: 3,
-    system:
-      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
-    prompt: (d) =>
-      `Based on this project description, design the REST API structure in Markdown. Include endpoints, HTTP methods, request/response shapes. Description: ${d}`,
-  },
-  {
-    kind: "DOCUMENT",
-    type: "tasks",
-    title: "Tasks & User Stories",
-    order: 4,
-    system:
-      "You are a senior software architect. Always respond with properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line (two newlines). Never output a wall of text on a single line.",
-    prompt: (d) =>
-      `Based on this project description, break down the work into user stories and tasks in Markdown. Group by feature area. Description: ${d}`,
-  },
-  {
-    kind: "DIAGRAM",
-    type: "architecture",
-    title: "System Architecture",
-    order: 0,
-    system: "You are a senior software architect.",
-    prompt: (d) =>
-      `Based on this project description, generate a Mermaid system architecture diagram. Use graph TD syntax. Only output the raw Mermaid code, no markdown fences, no explanation. Description: ${d}`,
-  },
-  {
-    kind: "DIAGRAM",
-    type: "erd",
-    title: "Entity Relationship Diagram",
-    order: 1,
-    system: "You are a senior software architect.",
-    prompt: (d) =>
-      `Based on this project description, generate a single unified Mermaid ERD diagram. Use erDiagram syntax ONCE at the top. Include ALL entities in one diagram. Only output the raw Mermaid code, no markdown fences, no explanation. Description: ${d}`,
-  },
-];
-
-async function generateAll(
+async function bootstrapProject(
   projectId: string,
+  userId: string,
+  projectName: string,
   description: string,
   chatId: string,
 ) {
-  const results = await Promise.allSettled(
-    sections.map((section) => generateSection(projectId, description, section)),
-  );
+  // All four LLM calls run in parallel
+  const [mainContent, tags, systemOverview, blockDiagram] = await Promise.all([
+    generateMainContent(description),
+    generateTags(description),
+    generateSystemOverview(description),
+    generateBlockDiagram(description, projectName),
+  ]);
 
-  results.forEach((result, i) => {
-    if (result.status === "rejected") {
-      console.error(
-        `❌ Failed to generate "${sections[i].title}":`,
-        result.reason,
-      );
-    }
+  // Upsert the owner as a collaborator
+  await prisma.projectCollaborator.upsert({
+    where: { projectId_userId: { projectId, userId } },
+    create: { projectId, userId, role: "OWNER" },
+    update: { role: "OWNER" },
   });
 
-  const created = results
-    .filter((r) => r.status === "fulfilled")
-    .map(
-      (r) =>
-        (r as PromiseFulfilledResult<{ kind: string; title: string }>).value,
-    );
+  // Stamp the project identity fields
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      mainColor: PRIMARY_COLOR,
+      mainContent,
+      tags,
+    },
+  });
+
+  // Scaffold the starter Requirements Specification section
+  const section = await prisma.section.create({
+    data: {
+      projectId,
+      title: "Requirements Specification",
+      order: 0,
+    },
+  });
+
+  await prisma.contentBlock.createMany({
+    data: [
+      {
+        projectId,
+        sectionId: section.id,
+        kind: "DOCUMENT",
+        type: "system_overview",
+        title: "System Overview",
+        content: systemOverview,
+        body: null,
+        order: 0,
+      },
+      {
+        projectId,
+        sectionId: section.id,
+        kind: "DIAGRAM",
+        type: "block_diagram",
+        title: "Block Diagram",
+        content: blockDiagram.mermaid,
+        body: blockDiagram.body,
+        order: 1,
+      },
+    ],
+  });
 
   await prisma.project.update({
     where: { id: projectId },
     data: { status: "COMPLETE" },
   });
 
-  const finalProject = await prisma.project.findFirst({
-    where: { id: projectId },
-    include: { contentBlocks: { orderBy: { order: "asc" } } },
-  });
-
   await prisma.chatMessage.create({
     data: {
       chatId,
       role: "ASSISTANT",
-      content: `Generated ${created.length} sections: ${created.map((c) => c.title).join(", ")}`,
+      content:
+        "Project bootstrapped with abstract, tags, and a starter Requirements Specification section. You can now add and generate more sections.",
       snapshot: {
-        created,
+        created: [
+          "mainContent",
+          "tags",
+          "collaborator",
+          "Requirements Specification",
+        ],
         edited: [],
-        projectState: {
-          description: finalProject?.description ?? "",
-          contentBlocks: finalProject?.contentBlocks.map((b) => ({
-            id: b.id,
-            kind: b.kind,
-            type: b.type,
-            title: b.title,
-            content: b.content,
-            body: b.body,
-            order: b.order,
-          })),
-        },
+        projectState: { description },
       },
     },
   });
 }
 
-async function generateSection(
-  projectId: string,
-  description: string,
-  section: (typeof sections)[number],
-) {
+// ─── Mermaid helper ───────────────────────────────────────────────────────────
+
+/**
+ * Ensures the Mermaid string opens with a frontmatter title block.
+ * If the model already produced one, it's left untouched.
+ * Otherwise we inject one from the project name as a fallback.
+ */
+function ensureMermaidTitle(mermaid: string, projectName: string): string {
+  if (mermaid.trimStart().startsWith("---")) return mermaid;
+  return `---\ntitle: ${projectName} — Block Diagram\n---\n${mermaid}`;
+}
+
+// ─── LLM helpers ─────────────────────────────────────────────────────────────
+
+async function generateMainContent(description: string): Promise<string> {
   const { text } = await generateText({
     model,
-    system: section.system,
-    prompt: section.prompt(description),
+    system:
+      "You are a senior software architect writing a project proposal document. Always respond with properly formatted Markdown. Use clear ## headings, separate every section with a blank line, and write in a professional but accessible tone.",
+    prompt: `Based on this project description, write a structured project document in Markdown with the following five sections. Each section MUST start with its exact ## heading.
+
+## Project Abstract
+A polished 4–6 sentence summary covering the project's goal, what makes it different from existing solutions, how it works at a high level, and its intended impact.
+
+## High Level Requirements
+A clear narrative paragraph (no bullet points) describing the core functional requirements — what the system must do from the user's perspective.
+
+## Conceptual Design
+A paragraph describing the high-level technical approach: what AI models, APIs, or platforms will be used, how the components connect, and how data flows through the system.
+
+## Background
+Two paragraphs. The first covers why this problem matters and what existing tools exist. The second explains their limitations and the gap this project fills — be specific about shortcomings of current solutions.
+
+## Required Resources
+A short bulleted list of the tools, services, frameworks, and infrastructure needed to build and run the project.
+
+Project description: ${description}`,
   });
 
-  await prisma.contentBlock.create({
-    data: {
-      projectId,
-      kind: section.kind,
-      type: section.type,
-      title: section.title,
-      content: text.trim(),
-      order: section.order,
-    },
+  return text.trim();
+}
+
+async function generateSystemOverview(description: string): Promise<string> {
+  const { text } = await generateText({
+    model,
+    system:
+      "You are a senior software architect writing a detailed technical document. Always respond with properly formatted Markdown. Use ## and ### headings, separate every section with a blank line. Be specific and technical.",
+    prompt: `Based on this project description, write a comprehensive System Overview document in Markdown. Include all of the following sections with their exact headings:
+
+## Purpose & Scope
+Explain what the system does, who it is for, and what it explicitly does NOT cover (scope boundaries).
+
+## System Goals
+A numbered list of 4–6 specific, measurable goals the system aims to achieve.
+
+## Key Features
+A bulleted list of the major features and capabilities. Each bullet should have a **bold feature name** followed by a brief description.
+
+## User Roles
+Describe the different types of users interacting with the system (e.g. end user, admin, collaborator) and what each can do.
+
+## Assumptions & Constraints
+A short bulleted list of technical or business assumptions the system is built on, and any known constraints (time, budget, platform, etc.).
+
+## Success Criteria
+How will we know the system is successful? List 3–5 measurable outcomes or acceptance criteria.
+
+Project description: ${description}`,
   });
 
-  return { kind: section.kind, title: section.title };
+  return text.trim();
+}
+
+async function generateBlockDiagram(
+  description: string,
+  projectName: string,
+): Promise<{ mermaid: string; body: string }> {
+  // Mermaid code and prose explanation generated in parallel
+  const [mermaidResult, bodyResult] = await Promise.all([
+    generateText({
+      model,
+      system:
+        "You are a senior software architect. You output only raw Mermaid code — no markdown fences, no explanation, no preamble.",
+      prompt: `Based on this project description, generate a detailed Mermaid block diagram.
+
+Your output MUST begin with a Mermaid frontmatter title block, then graph TD, like this:
+
+---
+title: ${projectName} — Block Diagram
+---
+graph TD
+
+The diagram MUST represent all of the following layers and their connections:
+- Frontend: UI framework, key pages/views, component library
+- API / Backend: server framework, API style (REST, GraphQL, tRPC, etc.), key route groups or handlers
+- Auth: authentication provider or service and where it intercepts requests
+- Database: ORM and underlying database engine
+- AI / LLM: the AI model or API, what triggers it, and how responses flow back
+- External services: any third-party APIs, storage, email, payment, etc.
+- Infrastructure: hosting or deployment platform
+
+Use short, descriptive node labels. Use subgraphs to visually group related nodes (e.g. subgraph Frontend, subgraph Backend). Show directional arrows with brief edge labels where the relationship needs clarification.
+
+Only output raw Mermaid — no fences, no explanation.
+
+Project description: ${description}`,
+    }),
+    generateText({
+      model,
+      system:
+        "You are a senior software architect writing clear technical documentation. Respond in well-structured Markdown prose with no headings and no bullet points — flowing paragraphs only.",
+      prompt: `Based on this project description, write a 4–6 paragraph technical explanation of the system's block diagram.
+
+Your explanation must walk through the diagram layer by layer:
+1. Open with a one-sentence overview of what the diagram shows as a whole.
+2. Describe how users interact with the frontend and what the key UI surfaces are.
+3. Explain how requests move from the frontend through the API/backend layer, including how authentication is enforced.
+4. Describe the database layer — what ORM is used, what data is persisted, and how the backend reads and writes to it.
+5. Explain the AI/LLM integration — what triggers an LLM call, what model or API is used, and how the response is handled and returned.
+6. Cover any external services and their role in the system.
+7. Close with a sentence on how these layers together deliver the product's core value.
+
+Write in flowing paragraphs, no bullet points, no headings.
+
+Project description: ${description}`,
+    }),
+  ]);
+
+  const mermaid = ensureMermaidTitle(mermaidResult.text.trim(), projectName);
+
+  return {
+    mermaid,
+    body: bodyResult.text.trim(),
+  };
+}
+
+async function generateTags(description: string): Promise<string[]> {
+  const { text } = await generateText({
+    model,
+    system:
+      "You are a project tagging assistant. Respond ONLY with a JSON array of strings — no explanation, no markdown fences, no preamble.",
+    prompt: `Generate 4–7 concise lowercase tags for this project. Tags should reflect the domain, tech type, and key concepts. Return only a JSON array like: ["ai","web-app","education"]
+
+Project description: ${description}`,
+  });
+
+  try {
+    const cleaned = text
+      .trim()
+      .replace(/```json|```/g, "")
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) return parsed.map(String).slice(0, 8);
+  } catch {
+    // safe default
+  }
+  return [];
 }

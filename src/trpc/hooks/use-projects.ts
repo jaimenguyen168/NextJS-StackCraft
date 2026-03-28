@@ -1,7 +1,6 @@
 import { useTRPC } from "@/trpc/client";
 import {
   useMutation,
-  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -16,7 +15,7 @@ export function useProjects() {
 
 export function useProject(projectId: string) {
   const trpc = useTRPC();
-  const { data: project, ...rest } = useQuery({
+  const { data: project, ...rest } = useSuspenseQuery({
     ...trpc.projects.getById.queryOptions({ id: projectId }),
     refetchInterval: (query) =>
       query.state.data?.status === "GENERATING" ? 3000 : false,
@@ -46,6 +45,154 @@ export function useUpdateProjectName(projectId: string) {
           trpc.projects.getById.queryOptions({ id: projectId }),
         );
         queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectColor(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateColor.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectMainContent(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateMainContent.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.projects.getChat.queryOptions({ projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectGithubUrl(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateGithubUrl.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectImageUrl(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateImageUrl.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectTags(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateTags.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useUpdateProjectPublished(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updatePublished.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useAddProjectLink(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.addLink.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useDeleteProjectLink(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteLink.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useInviteCollaborator(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.inviteCollaborator.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
+export function useRemoveCollaborator(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.removeCollaborator.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
       },
     }),
   );
@@ -156,4 +303,9 @@ export function useRestoreProject(projectId: string) {
       },
     }),
   );
+}
+
+export function useGetChat(projectId: string) {
+  const trpc = useTRPC();
+  return useSuspenseQuery(trpc.projects.getChat.queryOptions({ projectId }));
 }

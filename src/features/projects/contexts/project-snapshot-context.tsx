@@ -30,12 +30,18 @@ export interface SectionState {
 }
 
 export interface ProjectState {
+  name: string;
   description: string;
+  mainColor?: string | null;
+  mainContent?: string | null;
+  imageUrl?: string | null;
+  githubUrl?: string | null;
   contentBlocks: ContentBlockState[];
   sections: SectionState[];
 }
 
 interface ProjectSnapshotContextValue {
+  projectId: string;
   snapshot: ProjectState | null;
   setSnapshot: (snapshot: ProjectState | null) => void;
 }
@@ -43,10 +49,18 @@ interface ProjectSnapshotContextValue {
 const ProjectSnapshotContext =
   createContext<ProjectSnapshotContextValue | null>(null);
 
-export function ProjectSnapshotProvider({ children }: { children: ReactNode }) {
+export function ProjectSnapshotProvider({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children: ReactNode;
+}) {
   const [snapshot, setSnapshot] = useState<ProjectState | null>(null);
   return (
-    <ProjectSnapshotContext.Provider value={{ snapshot, setSnapshot }}>
+    <ProjectSnapshotContext.Provider
+      value={{ projectId, snapshot, setSnapshot }}
+    >
       {children}
     </ProjectSnapshotContext.Provider>
   );

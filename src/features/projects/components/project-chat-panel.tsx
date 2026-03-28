@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { SendIcon, HistoryIcon, ListIcon, Loader2Icon } from "lucide-react";
+import {
+  SendIcon,
+  HistoryIcon,
+  ListIcon,
+  Loader2Icon,
+  SettingsIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -11,29 +17,23 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { ProjectOutline } from "./project-outline";
+import { ProjectOutline } from "@/features/projects/components/project-outline";
+import { ProjectSettings } from "@/features/projects/components/project-settings";
+import { ProjectHistory } from "@/features/projects/components/project-history";
 import { useTRPC } from "@/trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useProject } from "@/trpc/hooks/use-projects";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ProjectHistory } from "@/features/projects/components/project-history";
-import {
-  ContentBlockState,
-  SectionState,
-} from "@/features/projects/contexts/project-snapshot-context";
 
-interface ProjectChatPanelProps {
-  project: {
-    id: string;
-    name: string;
-    contentBlocks: ContentBlockState[];
-    sections: SectionState[];
-  };
-}
+export default function ProjectChatPanel() {
+  const { projectId } = useProjectSnapshot();
+  const { project } = useProject(projectId);
 
-export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const trpc = useTRPC();
@@ -45,7 +45,7 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
     const p = searchParams.get("prompt");
     if (p) {
       setPrompt(decodeURIComponent(p));
-      router.replace(`/projects/${project.id}`, { scroll: false });
+      router.replace(`/projects/${projectId}`, { scroll: false });
     }
   }, [searchParams]);
 
@@ -63,7 +63,7 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       const res = await fetch("/api/projects/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, prompt: trimmed }),
+        body: JSON.stringify({ projectId, prompt: trimmed }),
       });
 
       const data = await res.json();
@@ -77,10 +77,10 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       setPrompt("");
 
       await queryClient.refetchQueries({
-        queryKey: trpc.projects.getById.queryKey({ id: project.id }),
+        queryKey: trpc.projects.getById.queryKey({ id: projectId }),
       });
       await queryClient.invalidateQueries({
-        queryKey: trpc.projects.getChat.queryKey({ projectId: project.id }),
+        queryKey: trpc.projects.getChat.queryKey({ projectId }),
       });
     } catch {
       toast.error("Failed to send edit request");
@@ -88,6 +88,8 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
       setLoading(false);
     }
   };
+
+  if (!project) return null;
 
   return (
     <div className="shrink-0">
@@ -122,7 +124,8 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
         </div>
 
         <div className="flex items-center justify-between py-1 lg:hidden">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Outline */}
             <Drawer open={navOpen} onOpenChange={setNavOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -136,7 +139,6 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
                 </DrawerHeader>
                 <div className="overflow-y-auto max-h-[60vh]">
                   <ProjectOutline
-                    project={project}
                     onScrollToAction={handleScrollTo}
                     onCloseAction={() => setNavOpen(false)}
                   />
@@ -144,6 +146,7 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
               </DrawerContent>
             </Drawer>
 
+            {/* History */}
             <Drawer open={historyOpen} onOpenChange={setHistoryOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -157,8 +160,26 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
                 </DrawerHeader>
                 <div className="overflow-y-auto max-h-[60vh] p-3">
                   <Suspense fallback={null}>
-                    <ProjectHistory projectId={project.id} />
+                    <ProjectHistory projectId={projectId} />
                   </Suspense>
+                </div>
+              </DrawerContent>
+            </Drawer>
+
+            {/* Settings */}
+            <Drawer open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <DrawerTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <SettingsIcon className="size-4" />
+                  Settings
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>Settings</DrawerTitle>
+                </DrawerHeader>
+                <div className="overflow-y-auto max-h-[60vh]">
+                  <ProjectSettings />
                 </div>
               </DrawerContent>
             </Drawer>

@@ -4,10 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SparklesIcon } from "lucide-react";
 import MermaidDiagram from "@/components/mermaid-diagram";
-import {
-  ContentBlockState,
-  SectionState,
-} from "@/features/projects/contexts/project-snapshot-context";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
+import { useProject } from "@/trpc/hooks/use-projects";
 
 interface ContentBlock {
   id: string;
@@ -30,14 +28,6 @@ interface Section {
   title: string;
   order: number;
   children: SectionChild[];
-}
-
-interface ProjectContentPanelProps {
-  project: {
-    description: string;
-    contentBlocks: ContentBlockState[];
-    sections: SectionState[];
-  };
 }
 
 function Block({ block }: { block: ContentBlock }) {
@@ -110,32 +100,67 @@ function SectionGroup({
   );
 }
 
-export default function ProjectContentPanel({
-  project,
-}: ProjectContentPanelProps) {
-  const sections = project.sections ?? [];
-  const ungroupedBlocks = project.contentBlocks.filter((b) => !b.sectionId);
+export default function ProjectContentPanel() {
+  const { projectId, snapshot } = useProjectSnapshot();
+  const { project } = useProject(projectId);
+
+  const displayProject = snapshot ?? project;
+  if (!displayProject) return null;
+
+  const sections = displayProject.sections ?? [];
+  const ungroupedBlocks = displayProject.contentBlocks.filter(
+    (b) => !b.sectionId,
+  );
 
   return (
-    <div className="absolute inset-0 overflow-y-auto p-4 lg:p-6 space-y-8">
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <div className="p-3 rounded-lg bg-muted">
-          <SparklesIcon className="size-4" />
-        </div>
-        <span>{project.description}</span>
+    <div className="absolute inset-0 overflow-y-auto">
+      {/* Cover */}
+      <div
+        className="relative flex h-48 w-full items-center justify-center shrink-0"
+        style={{
+          backgroundColor: displayProject.mainColor ?? "hsl(var(--primary))",
+        }}
+      >
+        <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
+          {displayProject.name}
+        </h1>
       </div>
 
-      {sections.map((section) => (
-        <SectionGroup
-          key={section.id}
-          section={section}
-          blocks={project.contentBlocks}
-        />
-      ))}
+      <div className="p-4 lg:p-6 space-y-8">
+        {/* Description */}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="p-3 rounded-lg bg-muted">
+            <SparklesIcon className="size-4" />
+          </div>
+          <span>{displayProject.description}</span>
+        </div>
 
-      {ungroupedBlocks.map((block) => (
-        <Block key={block.id} block={block} />
-      ))}
+        {/* Main content (abstract, background, etc.) */}
+        {displayProject.mainContent && (
+          <div
+            id="main-content"
+            className="prose prose-sm dark:prose-invert max-w-none"
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {displayProject.mainContent}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Sections */}
+        {sections.map((section) => (
+          <SectionGroup
+            key={section.id}
+            section={section}
+            blocks={displayProject.contentBlocks}
+          />
+        ))}
+
+        {/* Ungrouped blocks */}
+        {ungroupedBlocks.map((block) => (
+          <Block key={block.id} block={block} />
+        ))}
+      </div>
     </div>
   );
 }

@@ -18,7 +18,15 @@ async function getProjectSnapshot(projectId: string) {
   });
 
   return {
+    // Identity
+    name: project?.name ?? "",
     description: project?.description ?? "",
+    // Visual / cover
+    mainColor: project?.mainColor ?? null,
+    mainContent: project?.mainContent ?? null,
+    imageUrl: project?.imageUrl ?? null,
+    githubUrl: project?.githubUrl ?? null,
+    // Content
     contentBlocks:
       project?.contentBlocks.map((b) => ({
         id: b.id,
@@ -51,6 +59,48 @@ async function getOrCreateChat(projectId: string) {
   if (!chat) chat = await prisma.projectChat.create({ data: { projectId } });
   return chat;
 }
+
+// Zod schema for a full snapshot — shared between restore input and internal use
+const snapshotSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  mainColor: z.string().nullable().optional(),
+  mainContent: z.string().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  githubUrl: z.string().nullable().optional(),
+  contentBlocks: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.string(),
+      type: z.string(),
+      title: z.string(),
+      content: z.string(),
+      body: z.string().nullable().optional(),
+      order: z.number(),
+      sectionId: z.string().nullable().optional(),
+    }),
+  ),
+  sections: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        order: z.number(),
+        parentId: z.string().nullable().optional(),
+        children: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              order: z.number(),
+              parentId: z.string().nullable().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .optional(),
+});
 
 export const projectsRouter = createTRPCRouter({
   create: authProcedure
@@ -122,6 +172,11 @@ export const projectsRouter = createTRPCRouter({
             orderBy: { order: "asc" },
             include: { children: { orderBy: { order: "asc" } } },
           },
+          links: { orderBy: { order: "asc" } },
+          collaborators: {
+            include: { user: true },
+            orderBy: { createdAt: "asc" },
+          },
         },
       });
     }),
@@ -140,6 +195,10 @@ export const projectsRouter = createTRPCRouter({
             where: { parentId: null },
             orderBy: { order: "asc" },
             include: { children: { orderBy: { order: "asc" } } },
+          },
+          collaborators: {
+            include: { user: true },
+            orderBy: { createdAt: "asc" },
           },
         },
       });
@@ -176,6 +235,134 @@ export const projectsRouter = createTRPCRouter({
       return prisma.project.update({
         where: { id: input.id },
         data: { name: input.name, slug },
+      });
+    }),
+
+  updateColor: authProcedure
+    .input(z.object({ id: z.string(), mainColor: z.string() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { mainColor: input.mainColor },
+      }),
+    ),
+
+  updateMainContent: authProcedure
+    .input(z.object({ id: z.string(), mainContent: z.string() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { mainContent: input.mainContent },
+      }),
+    ),
+
+  updateGithubUrl: authProcedure
+    .input(z.object({ id: z.string(), githubUrl: z.string().nullable() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { githubUrl: input.githubUrl },
+      }),
+    ),
+
+  updateImageUrl: authProcedure
+    .input(z.object({ id: z.string(), imageUrl: z.string().nullable() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { imageUrl: input.imageUrl },
+      }),
+    ),
+
+  updateTags: authProcedure
+    .input(z.object({ id: z.string(), tags: z.array(z.string()) }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { tags: input.tags },
+      }),
+    ),
+
+  updatePublished: authProcedure
+    .input(z.object({ id: z.string(), published: z.boolean() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { published: input.published },
+      }),
+    ),
+
+  addLink: authProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        label: z.string(),
+        url: z.string().url(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await prisma.project.findFirst({
+        where: { id: input.projectId, userId: ctx.userId },
+        include: { links: true },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      const maxOrder = Math.max(0, ...project.links.map((l) => l.order));
+      return prisma.projectLink.create({
+        data: {
+          projectId: input.projectId,
+          label: input.label,
+          url: input.url,
+          order: maxOrder + 1,
+        },
+      });
+    }),
+
+  deleteLink: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const link = await prisma.projectLink.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!link) throw new TRPCError({ code: "NOT_FOUND" });
+      return prisma.projectLink.delete({ where: { id: input.id } });
+    }),
+
+  inviteCollaborator: authProcedure
+    .input(z.object({ projectId: z.string(), username: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await prisma.project.findFirst({
+        where: { id: input.projectId, userId: ctx.userId },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const user = await prisma.user.findUnique({
+        where: { username: input.username },
+      });
+      if (!user)
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      return prisma.projectCollaborator.create({
+        data: {
+          projectId: input.projectId,
+          userId: user.id,
+          role: "VIEWER",
+        },
+      });
+    }),
+
+  removeCollaborator: authProcedure
+    .input(z.object({ collaboratorId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const collaborator = await prisma.projectCollaborator.findFirst({
+        where: {
+          id: input.collaboratorId,
+          project: { userId: ctx.userId },
+          role: { not: "OWNER" },
+        },
+      });
+      if (!collaborator) throw new TRPCError({ code: "NOT_FOUND" });
+      return prisma.projectCollaborator.delete({
+        where: { id: input.collaboratorId },
       });
     }),
 
@@ -331,41 +518,7 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        snapshot: z.object({
-          description: z.string().optional(),
-          contentBlocks: z.array(
-            z.object({
-              id: z.string(),
-              kind: z.string(),
-              type: z.string(),
-              title: z.string(),
-              content: z.string(),
-              body: z.string().nullable().optional(),
-              order: z.number(),
-              sectionId: z.string().nullable().optional(),
-            }),
-          ),
-          sections: z
-            .array(
-              z.object({
-                id: z.string(),
-                title: z.string(),
-                order: z.number(),
-                parentId: z.string().nullable().optional(),
-                children: z
-                  .array(
-                    z.object({
-                      id: z.string(),
-                      title: z.string(),
-                      order: z.number(),
-                      parentId: z.string().nullable().optional(),
-                    }),
-                  )
-                  .optional(),
-              }),
-            )
-            .optional(),
-        }),
+        snapshot: snapshotSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -375,12 +528,29 @@ export const projectsRouter = createTRPCRouter({
       });
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const snapshotBlockIds = new Set(
-        input.snapshot.contentBlocks.map((b) => b.id),
-      );
+      const snap = input.snapshot;
+
+      // Restore project-level fields
+      await prisma.project.update({
+        where: { id: input.projectId },
+        data: {
+          ...(snap.name !== undefined && { name: snap.name }),
+          ...(snap.description !== undefined && {
+            description: snap.description,
+          }),
+          ...(snap.mainColor !== undefined && { mainColor: snap.mainColor }),
+          ...(snap.mainContent !== undefined && {
+            mainContent: snap.mainContent,
+          }),
+          ...(snap.imageUrl !== undefined && { imageUrl: snap.imageUrl }),
+          ...(snap.githubUrl !== undefined && { githubUrl: snap.githubUrl }),
+        },
+      });
+
+      const snapshotBlockIds = new Set(snap.contentBlocks.map((b) => b.id));
       const currentBlockIds = new Set(project.contentBlocks.map((b) => b.id));
 
-      const snapshotSections = input.snapshot.sections ?? [];
+      const snapshotSections = snap.sections ?? [];
       const allSnapshotSections = snapshotSections.flatMap((s) => [
         s,
         ...(s.children ?? []),
@@ -390,12 +560,10 @@ export const projectsRouter = createTRPCRouter({
 
       // Restore sections first (blocks reference them)
       await Promise.all([
-        // Delete sections not in snapshot
         ...project.sections
           .filter((s) => !snapshotSectionIds.has(s.id))
           .map((s) => prisma.section.delete({ where: { id: s.id } })),
 
-        // Update existing sections
         ...allSnapshotSections
           .filter((s) => currentSectionIds.has(s.id))
           .map((s) =>
@@ -405,7 +573,6 @@ export const projectsRouter = createTRPCRouter({
             }),
           ),
 
-        // Recreate deleted sections
         ...allSnapshotSections
           .filter((s) => !currentSectionIds.has(s.id))
           .map((s) =>
@@ -427,7 +594,7 @@ export const projectsRouter = createTRPCRouter({
           .filter((b) => !snapshotBlockIds.has(b.id))
           .map((b) => prisma.contentBlock.delete({ where: { id: b.id } })),
 
-        ...input.snapshot.contentBlocks
+        ...snap.contentBlocks
           .filter((b) => currentBlockIds.has(b.id))
           .map((b) =>
             prisma.contentBlock.update({
@@ -442,7 +609,7 @@ export const projectsRouter = createTRPCRouter({
             }),
           ),
 
-        ...input.snapshot.contentBlocks
+        ...snap.contentBlocks
           .filter((b) => !currentBlockIds.has(b.id))
           .map((b) =>
             prisma.contentBlock.create({
