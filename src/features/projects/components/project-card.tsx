@@ -82,7 +82,8 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
           onClick && "cursor-pointer",
         )}
       >
-        <div className="flex items-start justify-between gap-2">
+        {/* Top row: name + time + dropdown */}
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="flex size-8 items-center justify-center rounded-lg bg-muted shrink-0">
               <FolderOpenIcon className="size-4 text-muted-foreground" />
@@ -92,25 +93,17 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
             </h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Badge
-              className={cn(
-                "text-[11px] px-2 py-0.5 rounded-md font-medium border-0",
-                statusStyles[project.status],
-              )}
-            >
-              {project.status.charAt(0) + project.status.slice(1).toLowerCase()}
-            </Badge>
-            {project.published && (
-              <Badge className="text-[11px] px-2 py-0.5 rounded-md font-medium border-0 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                Published
-              </Badge>
-            )}
+            <p className="text-[11px] text-muted-foreground/60">
+              {formatDistanceToNow(new Date(project.createdAt), {
+                addSuffix: true,
+              })}
+            </p>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 p-0"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontalIcon className="size-3.5" />
@@ -166,15 +159,27 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
           </div>
         </div>
 
+        {/* Description */}
         <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
           {project.description}
         </p>
 
-        <p className="text-[11px] text-muted-foreground/60 mt-auto">
-          {formatDistanceToNow(new Date(project.createdAt), {
-            addSuffix: true,
-          })}
-        </p>
+        {/* Bottom row: status + published badges */}
+        <div className="flex items-center gap-1.5 mt-auto">
+          <Badge
+            className={cn(
+              "text-[11px] px-2 py-0.5 rounded-md font-medium border-0",
+              statusStyles[project.status],
+            )}
+          >
+            {project.status.charAt(0) + project.status.slice(1).toLowerCase()}
+          </Badge>
+          {project.published && (
+            <Badge className="text-[11px] px-2 py-0.5 rounded-md font-medium border-0 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              Published
+            </Badge>
+          )}
+        </div>
       </div>
     </>
   );

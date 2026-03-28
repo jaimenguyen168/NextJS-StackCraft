@@ -24,7 +24,15 @@ export default function PublicProjectView({
     trpc.projects.getBySlug.queryOptions({ username, slug: projectSlug }),
   );
 
-  if (!project) notFound();
+  if (!project)
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center gap-2 text-muted-foreground">
+        <p className="text-sm">Project not found.</p>
+        <Link href="/projects" className="text-xs underline">
+          Back to projects
+        </Link>
+      </div>
+    );
 
   const ungroupedBlocks = project.contentBlocks.filter((b) => !b.sectionId);
   const hasSections = project.sections.length > 0;

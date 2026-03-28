@@ -1,24 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface Block {
   id: string;
@@ -56,118 +49,76 @@ export function DocsSidebar({
   currentBlockId,
   baseUrl,
 }: DocsSidebarProps) {
-  const defaultOpenSections = sections.map((s) => s.id);
-
   return (
     <Sidebar collapsible="offcanvas" className="border-r">
       <SidebarHeader className="border-b p-4">
         <Link
           href={projectUrl}
-          className="font-semibold text-sm hover:text-primary transition-colors truncate no-underline"
+          className="font-semibold text-sm hover:text-primary transition-colors truncate"
         >
           {projectName}
         </Link>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <Accordion
-                type="multiple"
-                defaultValue={defaultOpenSections}
-                className="w-full"
-              >
-                {sections.map((section) => {
-                  const sectionBlocks = blocks.filter(
-                    (b) => b.sectionId === section.id,
+      <SidebarContent className="px-3">
+        {sections.map((section) => {
+          const sectionBlocks = blocks.filter(
+            (b) => b.sectionId === section.id,
+          );
+
+          return (
+            <Collapsible key={section.id} defaultOpen>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-2 py-1.5 font-medium text-sm hover:bg-muted/60 [&[data-state=open]>svg]:-rotate-90 mt-2">
+                {section.title}
+                <ChevronLeft className="h-4 w-4 transition-transform duration-200 shrink-0" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="ml-2 border-l pl-2">
+                {sectionBlocks.map((block) => (
+                  <Link
+                    key={block.id}
+                    href={`${baseUrl}?block=${block.id}`}
+                    className={`flex items-center mt-1 px-2 py-1.5 text-sm rounded-md transition-colors ${
+                      currentBlockId === block.id
+                        ? "bg-muted text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    {block.title}
+                  </Link>
+                ))}
+
+                {section.children.map((child) => {
+                  const childBlocks = blocks.filter(
+                    (b) => b.sectionId === child.id,
                   );
 
                   return (
-                    <AccordionItem
-                      key={section.id}
-                      value={section.id}
-                      className="border-none"
-                    >
-                      <AccordionTrigger className="px-2 py-1.5 text-sm font-medium hover:bg-muted/60 rounded-md no-underline hover:no-underline *:no-underline! [&[data-state=open]>svg]:rotate-180">
-                        {section.title}
-                      </AccordionTrigger>
-                      <AccordionContent className="pb-0">
-                        <SidebarMenuSub>
-                          {sectionBlocks.map((block) => (
-                            <SidebarMenuSubItem key={block.id}>
-                              <SidebarMenuSubButton
-                                asChild
-                                isActive={currentBlockId === block.id}
-                                className="no-underline!"
-                              >
-                                <Link
-                                  href={`${baseUrl}?block=${block.id}`}
-                                  className="flex items-center gap-1.5 no-underline"
-                                >
-                                  {block.title}
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-
-                          {section.children.map((child) => {
-                            const childBlocks = blocks.filter(
-                              (b) => b.sectionId === child.id,
-                            );
-
-                            return (
-                              <SidebarMenuItem
-                                key={child.id}
-                                className="list-none"
-                              >
-                                <Accordion
-                                  type="multiple"
-                                  defaultValue={[child.id]}
-                                  className="w-full"
-                                >
-                                  <AccordionItem
-                                    value={child.id}
-                                    className="border-none"
-                                  >
-                                    <AccordionTrigger className="px-2 py-1.5 font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md no-underline hover:no-underline *:no-underline [&[data-state=open]>svg]:rotate-180">
-                                      {child.title}
-                                    </AccordionTrigger>
-                                    <AccordionContent className="pb-0">
-                                      <SidebarMenuSub>
-                                        {childBlocks.map((block) => (
-                                          <SidebarMenuSubItem key={block.id}>
-                                            <SidebarMenuSubButton
-                                              asChild
-                                              isActive={
-                                                currentBlockId === block.id
-                                              }
-                                              className="no-underline!"
-                                            >
-                                              <Link
-                                                href={`${baseUrl}?block=${block.id}`}
-                                                className="flex items-center gap-1.5 no-underline"
-                                              >
-                                                {block.title}
-                                              </Link>
-                                            </SidebarMenuSubButton>
-                                          </SidebarMenuSubItem>
-                                        ))}
-                                      </SidebarMenuSub>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              </SidebarMenuItem>
-                            );
-                          })}
-                        </SidebarMenuSub>
-                      </AccordionContent>
-                    </AccordionItem>
+                    <Collapsible key={child.id} defaultOpen>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 [&[data-state=open]>svg]:-rotate-90 mt-2">
+                        {child.title}
+                        <ChevronLeft className="size-4 transition-transform duration-200 shrink-0" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-1 ml-2 border-l pl-2">
+                        {childBlocks.map((block) => (
+                          <Link
+                            key={block.id}
+                            href={`${baseUrl}?block=${block.id}`}
+                            className={`flex items-center px-2 py-1.5 text-sm rounded-md transition-colors ${
+                              currentBlockId === block.id
+                                ? "bg-muted text-foreground font-medium"
+                                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            }`}
+                          >
+                            {block.title}
+                          </Link>
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
                   );
                 })}
-              </Accordion>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
       </SidebarContent>
     </Sidebar>
   );
