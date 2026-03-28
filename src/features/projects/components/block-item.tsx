@@ -41,6 +41,7 @@ import {
   useDeleteBlock,
   useAssignBlockToSection,
 } from "@/trpc/hooks/use-projects";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import type {
   ContentBlockState,
   SectionState,
@@ -49,7 +50,6 @@ import { useRouter } from "next/navigation";
 
 interface BlockItemProps {
   block: ContentBlockState;
-  projectId: string;
   sections: SectionState[];
   onScrollTo: (id: string) => void;
   onCloseAction?: () => void;
@@ -57,11 +57,11 @@ interface BlockItemProps {
 
 export function BlockItem({
   block,
-  projectId,
   sections,
   onScrollTo,
   onCloseAction,
 }: BlockItemProps) {
+  const { projectId } = useProjectSnapshot();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(block.content);
   const [bodyDraft, setBodyDraft] = useState(block.body ?? "");

@@ -32,39 +32,9 @@ import {
   useDeleteProjectLink,
   useInviteCollaborator,
   useRemoveCollaborator,
+  useProject,
 } from "@/trpc/hooks/use-projects";
-
-interface ProjectLink {
-  id: string;
-  label: string;
-  url: string;
-  order: number;
-}
-
-interface Collaborator {
-  id: string;
-  role: string;
-  user: {
-    id: string;
-    username: string;
-    name?: string | null;
-    imageUrl?: string | null;
-  };
-}
-
-interface ProjectSettingsProps {
-  project: {
-    id: string;
-    username: string;
-    slug: string;
-    githubUrl?: string | null;
-    imageUrl?: string | null;
-    tags: string[];
-    published: boolean;
-    links: ProjectLink[];
-    collaborators: Collaborator[];
-  };
-}
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
@@ -92,13 +62,8 @@ function SettingsSection({
 
 // ─── GitHub URL ───────────────────────────────────────────────────────────────
 
-function GithubUrlField({
-  projectId,
-  value,
-}: {
-  projectId: string;
-  value?: string | null;
-}) {
+function GithubUrlField({ value }: { value?: string | null }) {
+  const { projectId } = useProjectSnapshot();
   const [draft, setDraft] = useState(value ?? "");
   const [dirty, setDirty] = useState(false);
   const update = useUpdateProjectGithubUrl(projectId);
@@ -140,13 +105,8 @@ function GithubUrlField({
 
 // ─── Image URL ────────────────────────────────────────────────────────────────
 
-function ImageUrlField({
-  projectId,
-  value,
-}: {
-  projectId: string;
-  value?: string | null;
-}) {
+function ImageUrlField({ value }: { value?: string | null }) {
+  const { projectId } = useProjectSnapshot();
   const [tab, setTab] = useState<"url" | "upload">("url");
   const [draft, setDraft] = useState(value ?? "");
   const [dirty, setDirty] = useState(false);
@@ -214,13 +174,8 @@ function ImageUrlField({
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 
-function TagsField({
-  projectId,
-  tags = [],
-}: {
-  projectId: string;
-  tags: string[];
-}) {
+function TagsField({ tags = [] }: { tags: string[] }) {
+  const { projectId } = useProjectSnapshot();
   const [input, setInput] = useState("");
   const update = useUpdateProjectTags(projectId);
 
@@ -287,12 +242,11 @@ function TagsField({
 // ─── Project Links ────────────────────────────────────────────────────────────
 
 function ProjectLinksField({
-  projectId,
   links,
 }: {
-  projectId: string;
-  links: ProjectLink[];
+  links: { id: string; label: string; url: string; order: number }[];
 }) {
+  const { projectId } = useProjectSnapshot();
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
   const addLink = useAddProjectLink(projectId);
@@ -374,12 +328,20 @@ function ProjectLinksField({
 // ─── Collaborators ────────────────────────────────────────────────────────────
 
 function CollaboratorsField({
-  projectId,
   collaborators,
 }: {
-  projectId: string;
-  collaborators: Collaborator[];
+  collaborators: {
+    id: string;
+    role: string;
+    user: {
+      id: string;
+      username: string;
+      name?: string | null;
+      imageUrl?: string | null;
+    };
+  }[];
 }) {
+  const { projectId } = useProjectSnapshot();
   const [input, setInput] = useState("");
   const invite = useInviteCollaborator(projectId);
   const remove = useRemoveCollaborator(projectId);
@@ -467,16 +429,15 @@ function CollaboratorsField({
 // ─── Published toggle ─────────────────────────────────────────────────────────
 
 function PublishedToggle({
-  projectId,
   published,
   username,
   slug,
 }: {
-  projectId: string;
   published: boolean;
   username: string;
   slug: string;
 }) {
+  const { projectId } = useProjectSnapshot();
   const [copied, setCopied] = useState(false);
   const update = useUpdateProjectPublished(projectId);
 
@@ -512,7 +473,6 @@ function PublishedToggle({
           }
         />
       </div>
-
       {published && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-muted/20 border border-border/40">
           <a
@@ -550,12 +510,16 @@ function PublishedToggle({
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-export function ProjectSettings({ project }: ProjectSettingsProps) {
+export function ProjectSettings() {
+  const { projectId } = useProjectSnapshot();
+  const { project } = useProject(projectId);
+
+  if (!project) return null;
+
   return (
     <div className="space-y-5 p-3">
       <SettingsSection icon={GlobeIcon} title="Visibility">
         <PublishedToggle
-          projectId={project.id}
           published={project.published}
           username={project.username}
           slug={project.slug}
@@ -565,34 +529,31 @@ export function ProjectSettings({ project }: ProjectSettingsProps) {
       <Separator />
 
       <SettingsSection icon={FaGithub} title="GitHub">
-        <GithubUrlField projectId={project.id} value={project.githubUrl} />
+        <GithubUrlField value={project.githubUrl} />
       </SettingsSection>
 
       <Separator />
 
       <SettingsSection icon={ImageIcon} title="Project Image">
-        <ImageUrlField projectId={project.id} value={project.imageUrl} />
+        <ImageUrlField value={project.imageUrl} />
       </SettingsSection>
 
       <Separator />
 
       <SettingsSection icon={TagIcon} title="Tags">
-        <TagsField projectId={project.id} tags={project.tags} />
+        <TagsField tags={project.tags ?? []} />
       </SettingsSection>
 
       <Separator />
 
       <SettingsSection icon={LinkIcon} title="Links">
-        <ProjectLinksField projectId={project.id} links={project.links} />
+        <ProjectLinksField links={project.links ?? []} />
       </SettingsSection>
 
       <Separator />
 
       <SettingsSection icon={UsersIcon} title="Collaborators">
-        <CollaboratorsField
-          projectId={project.id}
-          collaborators={project.collaborators}
-        />
+        <CollaboratorsField collaborators={project.collaborators ?? []} />
       </SettingsSection>
     </div>
   );

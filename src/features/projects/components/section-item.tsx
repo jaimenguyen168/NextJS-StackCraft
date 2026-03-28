@@ -29,6 +29,7 @@ import {
   useUpdateSection,
   useDeleteSection,
 } from "@/trpc/hooks/use-projects";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import type {
   ContentBlockState,
   SectionState,
@@ -38,13 +39,8 @@ import { BlockItem } from "./block-item";
 
 // ─── Add Sub-section Row ──────────────────────────────────────────────────────
 
-function AddSubSectionRow({
-  projectId,
-  parentId,
-}: {
-  projectId: string;
-  parentId: string;
-}) {
+function AddSubSectionRow({ parentId }: { parentId: string }) {
+  const { projectId } = useProjectSnapshot();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const createSection = useCreateSection(projectId);
@@ -123,7 +119,6 @@ function AddSubSectionRow({
 
 interface SectionItemProps {
   section: SectionState | SectionChildState;
-  projectId: string;
   blocks: ContentBlockState[];
   allSections: SectionState[];
   onScrollTo: (id: string) => void;
@@ -133,13 +128,13 @@ interface SectionItemProps {
 
 export function SectionItem({
   section,
-  projectId,
   blocks,
   allSections,
   onScrollTo,
   onCloseAction,
   depth = 0,
 }: SectionItemProps) {
+  const { projectId } = useProjectSnapshot();
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(section.title);
@@ -259,7 +254,6 @@ export function SectionItem({
             <BlockItem
               key={block.id}
               block={block}
-              projectId={projectId}
               sections={allSections}
               onScrollTo={onScrollTo}
               onCloseAction={onCloseAction}
@@ -269,7 +263,6 @@ export function SectionItem({
             <SectionItem
               key={child.id}
               section={child}
-              projectId={projectId}
               blocks={blocks}
               allSections={allSections}
               onScrollTo={onScrollTo}
@@ -277,9 +270,7 @@ export function SectionItem({
               depth={depth + 1}
             />
           ))}
-          {depth === 0 && (
-            <AddSubSectionRow projectId={projectId} parentId={section.id} />
-          )}
+          {depth === 0 && <AddSubSectionRow parentId={section.id} />}
         </div>
       )}
     </div>
@@ -288,7 +279,8 @@ export function SectionItem({
 
 // ─── Add Section Row ──────────────────────────────────────────────────────────
 
-export function AddSectionRow({ projectId }: { projectId: string }) {
+export function AddSectionRow() {
+  const { projectId } = useProjectSnapshot();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const createSection = useCreateSection(projectId);

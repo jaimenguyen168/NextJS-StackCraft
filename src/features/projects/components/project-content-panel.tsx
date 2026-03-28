@@ -4,10 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SparklesIcon } from "lucide-react";
 import MermaidDiagram from "@/components/mermaid-diagram";
-import {
-  ContentBlockState,
-  SectionState,
-} from "@/features/projects/contexts/project-snapshot-context";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
+import { useProject } from "@/trpc/hooks/use-projects";
 
 interface ContentBlock {
   id: string;
@@ -30,17 +28,6 @@ interface Section {
   title: string;
   order: number;
   children: SectionChild[];
-}
-
-interface ProjectContentPanelProps {
-  project: {
-    name: string;
-    description: string;
-    mainColor?: string | null;
-    mainContent?: string | null;
-    contentBlocks: ContentBlockState[];
-    sections: SectionState[];
-  };
 }
 
 function Block({ block }: { block: ContentBlock }) {
@@ -113,21 +100,29 @@ function SectionGroup({
   );
 }
 
-export default function ProjectContentPanel({
-  project,
-}: ProjectContentPanelProps) {
-  const sections = project.sections ?? [];
-  const ungroupedBlocks = project.contentBlocks.filter((b) => !b.sectionId);
+export default function ProjectContentPanel() {
+  const { projectId, snapshot } = useProjectSnapshot();
+  const { project } = useProject(projectId);
+
+  const displayProject = snapshot ?? project;
+  if (!displayProject) return null;
+
+  const sections = displayProject.sections ?? [];
+  const ungroupedBlocks = displayProject.contentBlocks.filter(
+    (b) => !b.sectionId,
+  );
 
   return (
     <div className="absolute inset-0 overflow-y-auto">
       {/* Cover */}
       <div
         className="relative flex h-48 w-full items-center justify-center shrink-0"
-        style={{ backgroundColor: project.mainColor ?? "hsl(var(--primary))" }}
+        style={{
+          backgroundColor: displayProject.mainColor ?? "hsl(var(--primary))",
+        }}
       >
         <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
-          {project.name}
+          {displayProject.name}
         </h1>
       </div>
 
@@ -137,17 +132,17 @@ export default function ProjectContentPanel({
           <div className="p-3 rounded-lg bg-muted">
             <SparklesIcon className="size-4" />
           </div>
-          <span>{project.description}</span>
+          <span>{displayProject.description}</span>
         </div>
 
         {/* Main content (abstract, background, etc.) */}
-        {project.mainContent && (
+        {displayProject.mainContent && (
           <div
             id="main-content"
             className="prose prose-sm dark:prose-invert max-w-none"
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {project.mainContent}
+              {displayProject.mainContent}
             </ReactMarkdown>
           </div>
         )}
@@ -157,7 +152,7 @@ export default function ProjectContentPanel({
           <SectionGroup
             key={section.id}
             section={section}
-            blocks={project.contentBlocks}
+            blocks={displayProject.contentBlocks}
           />
         ))}
 

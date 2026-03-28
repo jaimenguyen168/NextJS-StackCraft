@@ -8,19 +8,14 @@ import ProjectChatPanel from "@/features/projects/components/project-chat-panel"
 import ProjectSidePanel from "@/features/projects/components/project-side-panel";
 import {
   ProjectSnapshotProvider,
-  SectionState,
   useProjectSnapshot,
 } from "@/features/projects/contexts/project-snapshot-context";
 import { Suspense } from "react";
 import Link from "next/link";
 
-interface ProjectDetailsViewProps {
-  projectId: string;
-}
-
-function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
+function ProjectDetailsContent() {
+  const { projectId, snapshot, setSnapshot } = useProjectSnapshot();
   const { project } = useProject(projectId);
-  const { snapshot, setSnapshot } = useProjectSnapshot();
 
   if (!project)
     return (
@@ -34,40 +29,6 @@ function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
 
   const isGenerating =
     project.status === "GENERATING" || project.status === "PENDING";
-
-  const mappedSections: SectionState[] = project.sections.map((s) => ({
-    id: s.id,
-    title: s.title,
-    order: s.order,
-    parentId: s.parentId,
-    children: s.children.map((c) => ({
-      id: c.id,
-      title: c.title,
-      order: c.order,
-      parentId: c.parentId,
-      children: [],
-    })),
-  }));
-
-  const mappedProject = {
-    id: project.id,
-    name: project.name,
-    description: project.description,
-    mainColor: project.mainColor,
-    mainContent: project.mainContent,
-    githubUrl: project.githubUrl,
-    imageUrl: project.imageUrl,
-    username: project.username,
-    slug: project.slug,
-    tags: project.tags ?? [],
-    published: project.published,
-    links: project.links ?? [],
-    collaborators: project.collaborators ?? [],
-    contentBlocks: project.contentBlocks,
-    sections: mappedSections,
-  };
-
-  const displayProject = snapshot ?? mappedProject;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -90,26 +51,30 @@ function ProjectDetailsContent({ projectId }: ProjectDetailsViewProps) {
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="relative flex-1 min-h-0">
             <div className="absolute inset-0 overflow-y-auto">
-              <ProjectContentPanel project={displayProject} />
+              <ProjectContentPanel />
             </div>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-background to-transparent" />
           </div>
           <Suspense fallback={null}>
-            <ProjectChatPanel project={mappedProject} />
+            <ProjectChatPanel />
           </Suspense>
         </div>
-        <ProjectSidePanel project={mappedProject} />
+        <ProjectSidePanel />
       </div>
     </div>
   );
+}
+
+interface ProjectDetailsViewProps {
+  projectId: string;
 }
 
 export default function ProjectDetailsView({
   projectId,
 }: ProjectDetailsViewProps) {
   return (
-    <ProjectSnapshotProvider>
-      <ProjectDetailsContent projectId={projectId} />
+    <ProjectSnapshotProvider projectId={projectId}>
+      <ProjectDetailsContent />
     </ProjectSnapshotProvider>
   );
 }

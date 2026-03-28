@@ -6,47 +6,7 @@ import { HistoryIcon, ListIcon, SettingsIcon } from "lucide-react";
 import { ProjectOutline } from "@/features/projects/components/project-outline";
 import { ProjectHistory } from "@/features/projects/components/project-history";
 import { ProjectSettings } from "@/features/projects/components/project-settings";
-import {
-  ContentBlockState,
-  SectionState,
-} from "@/features/projects/contexts/project-snapshot-context";
-
-interface ProjectLink {
-  id: string;
-  label: string;
-  url: string;
-  order: number;
-}
-
-interface Collaborator {
-  id: string;
-  role: string;
-  user: {
-    id: string;
-    username: string;
-    name?: string | null;
-    imageUrl?: string | null;
-  };
-}
-
-interface ProjectSidePanelProps {
-  project: {
-    id: string;
-    name: string;
-    username: string;
-    slug: string;
-    mainColor?: string | null;
-    mainContent?: string | null;
-    githubUrl?: string | null;
-    imageUrl?: string | null;
-    tags: string[];
-    published: boolean;
-    links: ProjectLink[];
-    collaborators: Collaborator[];
-    contentBlocks: ContentBlockState[];
-    sections: SectionState[];
-  };
-}
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 
 type Tab = "outline" | "history" | "settings";
 
@@ -56,7 +16,8 @@ const TABS: { value: Tab; icon: React.ElementType; label: string }[] = [
   { value: "settings", icon: SettingsIcon, label: "Settings" },
 ];
 
-export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
+export default function ProjectSidePanel() {
+  const { projectId } = useProjectSnapshot();
   const [activeTab, setActiveTab] = useState<Tab>("outline");
 
   const handleScrollTo = (id: string) => {
@@ -99,7 +60,7 @@ export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
           value="outline"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
-          <ProjectOutline project={project} onScrollToAction={handleScrollTo} />
+          <ProjectOutline onScrollToAction={handleScrollTo} />
         </TabsContent>
 
         <TabsContent
@@ -107,7 +68,7 @@ export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-3"
         >
           <Suspense fallback={null}>
-            <ProjectHistory projectId={project.id} />
+            <ProjectHistory projectId={projectId} />
           </Suspense>
         </TabsContent>
 
@@ -115,7 +76,7 @@ export default function ProjectSidePanel({ project }: ProjectSidePanelProps) {
           value="settings"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
-          <ProjectSettings project={project} />
+          <ProjectSettings />
         </TabsContent>
       </Tabs>
     </div>

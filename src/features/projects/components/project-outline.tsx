@@ -4,37 +4,28 @@ import { useState } from "react";
 import { PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useUpdateProjectName } from "@/trpc/hooks/use-projects";
-import type {
-  ContentBlockState,
-  SectionState,
-} from "@/features/projects/contexts/project-snapshot-context";
+import { useUpdateProjectName, useProject } from "@/trpc/hooks/use-projects";
+import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { ColorPickerRow } from "./color-picker-row";
 import { MainContentItem } from "./main-content-item";
 import { BlockItem } from "./block-item";
 import { SectionItem, AddSectionRow } from "./section-item";
 
-interface Project {
-  id: string;
-  name: string;
-  mainColor?: string | null;
-  mainContent?: string | null;
-  contentBlocks: ContentBlockState[];
-  sections: SectionState[];
-}
-
 export function ProjectOutline({
-  project,
   onScrollToAction,
   onCloseAction,
 }: {
-  project: Project;
   onScrollToAction: (id: string) => void;
   onCloseAction?: () => void;
 }) {
+  const { projectId } = useProjectSnapshot();
+  const { project } = useProject(projectId);
+
   const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(project.name);
-  const updateName = useUpdateProjectName(project.id);
+  const [nameDraft, setNameDraft] = useState("");
+  const updateName = useUpdateProjectName(projectId);
+
+  if (!project) return null;
 
   const ungroupedBlocks = project.contentBlocks.filter((b) => !b.sectionId);
 
@@ -58,7 +49,7 @@ export function ProjectOutline({
                 size="sm"
                 className="h-6 text-xs px-2"
                 onClick={() => {
-                  updateName.mutate({ id: project.id, name: nameDraft });
+                  updateName.mutate({ id: projectId, name: nameDraft });
                   setEditingName(false);
                 }}
               >
@@ -83,14 +74,17 @@ export function ProjectOutline({
               {project.name}
             </span>
             <button
-              onClick={() => setEditingName(true)}
+              onClick={() => {
+                setNameDraft(project.name);
+                setEditingName(true);
+              }}
               className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <PencilIcon className="size-3 text-muted-foreground hover:text-foreground" />
             </button>
           </div>
         )}
-        <ColorPickerRow projectId={project.id} mainColor={project.mainColor} />
+        <ColorPickerRow projectId={projectId} mainColor={project.mainColor} />
       </div>
 
       {/* Main content */}
@@ -100,7 +94,7 @@ export function ProjectOutline({
             Introduction
           </p>
           <MainContentItem
-            projectId={project.id}
+            projectId={projectId}
             mainContent={project.mainContent}
             onScrollTo={onScrollToAction}
             onCloseAction={onCloseAction}
@@ -118,10 +112,18 @@ export function ProjectOutline({
             {project.sections.map((section) => (
               <SectionItem
                 key={section.id}
-                section={section}
-                projectId={project.id}
+                section={{
+                  ...section,
+                  children: section.children.map((c) => ({
+                    ...c,
+                    children: [],
+                  })),
+                }}
                 blocks={project.contentBlocks}
-                allSections={project.sections}
+                allSections={project.sections.map((s) => ({
+                  ...s,
+                  children: s.children.map((c) => ({ ...c, children: [] })),
+                }))}
                 onScrollTo={onScrollToAction}
                 onCloseAction={onCloseAction}
               />
@@ -136,28 +138,22 @@ export function ProjectOutline({
           {project.sections.length > 0 ? "Ungrouped" : "Blocks"}
         </p>
         <div className="space-y-0.5">
-          {ungroupedBlocks.length > 0 ? (
-            ungroupedBlocks.map((block) => (
-              <BlockItem
-                key={block.id}
-                block={block}
-                projectId={project.id}
-                sections={project.sections}
-                onScrollTo={onScrollToAction}
-                onCloseAction={onCloseAction}
-              />
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground px-2 py-2 text-center">
-              {project.contentBlocks.length === 0
-                ? "Blocks will appear here once generated."
-                : "All blocks are assigned to sections."}
-            </p>
-          )}
+          {ungroupedBlocks.map((block) => (
+            <BlockItem
+              key={block.id}
+              block={block}
+              sections={project.sections.map((s) => ({
+                ...s,
+                children: s.children.map((c) => ({ ...c, children: [] })),
+              }))}
+              onScrollTo={onScrollToAction}
+              onCloseAction={onCloseAction}
+            />
+          ))}
         </div>
       </div>
 
-      <AddSectionRow projectId={project.id} />
+      <AddSectionRow />
     </div>
   );
 }
