@@ -30,7 +30,12 @@ export interface SectionState {
 }
 
 export interface ProjectState {
+  name: string;
   description: string;
+  mainColor?: string | null;
+  mainContent?: string | null;
+  imageUrl?: string | null;
+  githubUrl?: string | null;
   contentBlocks: ContentBlockState[];
   sections: SectionState[];
 }

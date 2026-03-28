@@ -34,7 +34,10 @@ interface Section {
 
 interface ProjectContentPanelProps {
   project: {
+    name: string;
     description: string;
+    mainColor?: string | null;
+    mainContent?: string | null;
     contentBlocks: ContentBlockState[];
     sections: SectionState[];
   };
@@ -117,25 +120,52 @@ export default function ProjectContentPanel({
   const ungroupedBlocks = project.contentBlocks.filter((b) => !b.sectionId);
 
   return (
-    <div className="absolute inset-0 overflow-y-auto p-4 lg:p-6 space-y-8">
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <div className="p-3 rounded-lg bg-muted">
-          <SparklesIcon className="size-4" />
-        </div>
-        <span>{project.description}</span>
+    <div className="absolute inset-0 overflow-y-auto">
+      {/* Cover */}
+      <div
+        className="relative flex h-48 w-full items-center justify-center shrink-0"
+        style={{ backgroundColor: project.mainColor ?? "hsl(var(--primary))" }}
+      >
+        <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
+          {project.name}
+        </h1>
       </div>
 
-      {sections.map((section) => (
-        <SectionGroup
-          key={section.id}
-          section={section}
-          blocks={project.contentBlocks}
-        />
-      ))}
+      <div className="p-4 lg:p-6 space-y-8">
+        {/* Description */}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="p-3 rounded-lg bg-muted">
+            <SparklesIcon className="size-4" />
+          </div>
+          <span>{project.description}</span>
+        </div>
 
-      {ungroupedBlocks.map((block) => (
-        <Block key={block.id} block={block} />
-      ))}
+        {/* Main content (abstract, background, etc.) */}
+        {project.mainContent && (
+          <div
+            id="main-content"
+            className="prose prose-sm dark:prose-invert max-w-none"
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {project.mainContent}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Sections */}
+        {sections.map((section) => (
+          <SectionGroup
+            key={section.id}
+            section={section}
+            blocks={project.contentBlocks}
+          />
+        ))}
+
+        {/* Ungrouped blocks */}
+        {ungroupedBlocks.map((block) => (
+          <Block key={block.id} block={block} />
+        ))}
+      </div>
     </div>
   );
 }
