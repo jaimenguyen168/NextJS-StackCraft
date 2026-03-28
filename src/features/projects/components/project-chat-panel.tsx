@@ -92,21 +92,37 @@ export default function ProjectChatPanel({ project }: ProjectChatPanelProps) {
   return (
     <div className="shrink-0">
       <div className="p-3 space-y-2">
-        <Textarea
-          placeholder="Ask AI to edit or improve any section..."
-          className="min-h-36 max-h-60 overflow-y-auto resize-none text-sm border-border/60 bg-muted/30 focus-visible:ring-0 focus-visible:border-primary/50"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          disabled={loading}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-        />
-        <div className="flex items-center justify-between py-1">
-          <div className="flex items-center gap-3 lg:hidden">
+        <div className="relative">
+          <Textarea
+            placeholder="Ask AI to edit or improve any section..."
+            className="min-h-36 max-h-60 overflow-y-auto resize-none text-sm border-border/60 bg-muted/30 focus-visible:ring-0 focus-visible:border-primary/50 pr-3 pb-10 lg:pb-10"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            disabled={loading}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <Button
+            size="sm"
+            className="absolute bottom-2 right-2 hidden lg:flex px-3"
+            onClick={handleSend}
+            disabled={!prompt.trim() || loading}
+          >
+            {loading ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <SendIcon className="size-4" />
+            )}
+            {loading ? "Editing..." : "Send"}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between py-1 lg:hidden">
+          <div className="flex items-center gap-3">
             <Drawer open={navOpen} onOpenChange={setNavOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" size="sm">

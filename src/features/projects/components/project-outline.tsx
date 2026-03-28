@@ -48,34 +48,12 @@ import {
   useDeleteSection,
   useAssignBlockToSection,
 } from "@/trpc/hooks/use-projects";
-import { useRouter } from "next/navigation";
-import {
+import type {
   ContentBlockState,
   SectionState,
+  SectionChildState,
 } from "@/features/projects/contexts/project-snapshot-context";
-
-interface ContentBlock {
-  id: string;
-  kind: string;
-  title: string;
-  content: string;
-  body?: string | null;
-  sectionId?: string | null;
-}
-
-interface SectionChild {
-  id: string;
-  title: string;
-  order: number;
-  children: SectionChild[];
-}
-
-interface Section {
-  id: string;
-  title: string;
-  order: number;
-  children: SectionChild[];
-}
+import { useRouter } from "next/navigation";
 
 interface Project {
   id: string;
@@ -91,9 +69,9 @@ function BlockItem({
   onScrollTo,
   onCloseAction,
 }: {
-  block: ContentBlock;
+  block: ContentBlockState;
   projectId: string;
-  sections: Section[];
+  sections: SectionState[];
   onScrollTo: (id: string) => void;
   onCloseAction?: () => void;
 }) {
@@ -207,8 +185,7 @@ function BlockItem({
               {allSections.length > 0 && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
-                    <FolderIcon className="size-3 mr-2" />
-                    Assign to section
+                    <FolderIcon className="size-3 mr-2" /> Assign to section
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     {block.sectionId && (
@@ -242,7 +219,9 @@ function BlockItem({
                         {block.sectionId === s.id && (
                           <CheckIcon className="size-3 mr-2" />
                         )}
-                        {s.title}
+                        {"parentId" in s && s.parentId
+                          ? `  ↳ ${s.title}`
+                          : s.title}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuSubContent>
@@ -260,9 +239,7 @@ function BlockItem({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Delete &apos;{block.title}&apos;?
-                    </AlertDialogTitle>
+                    <AlertDialogTitle>Delete "{block.title}"?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will permanently delete this block. This action
                       cannot be undone.
@@ -287,6 +264,87 @@ function BlockItem({
   );
 }
 
+function AddSubSectionRow({
+  projectId,
+  parentId,
+}: {
+  projectId: string;
+  parentId: string;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const createSection = useCreateSection(projectId);
+
+  if (adding) {
+    return (
+      <div className="space-y-1.5 px-2 py-1">
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="text-[13px] h-7 bg-muted/40 border-border/60 focus-visible:ring-0"
+          placeholder="Sub-section name..."
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && title.trim()) {
+              createSection.mutate(
+                { projectId, title: title.trim(), parentId },
+                {
+                  onSuccess: () => {
+                    setTitle("");
+                    setAdding(false);
+                  },
+                },
+              );
+            }
+            if (e.key === "Escape") setAdding(false);
+          }}
+        />
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            className="h-6 text-xs px-2"
+            disabled={!title.trim() || createSection.isPending}
+            onClick={() =>
+              createSection.mutate(
+                { projectId, title: title.trim(), parentId },
+                {
+                  onSuccess: () => {
+                    setTitle("");
+                    setAdding(false);
+                  },
+                },
+              )
+            }
+          >
+            <CheckIcon className="size-3" /> Create
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-xs px-2"
+            onClick={() => {
+              setAdding(false);
+              setTitle("");
+            }}
+          >
+            <XIcon className="size-3" /> Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setAdding(true)}
+      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[13px] text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+    >
+      <PlusIcon className="size-3" />
+      Add sub-section
+    </button>
+  );
+}
+
 function SectionItem({
   section,
   projectId,
@@ -296,10 +354,10 @@ function SectionItem({
   onCloseAction,
   depth = 0,
 }: {
-  section: Section | SectionChild;
+  section: SectionState | SectionChildState;
   projectId: string;
-  blocks: ContentBlock[];
-  allSections: Section[];
+  blocks: ContentBlockState[];
+  allSections: SectionState[];
   onScrollTo: (id: string) => void;
   onCloseAction?: () => void;
   depth?: number;
@@ -394,7 +452,7 @@ function SectionItem({
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>
-                      Delete &apos;{section.title}&apos;?
+                      Delete "{section.title}"?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       The section will be deleted but its content blocks will
@@ -441,6 +499,10 @@ function SectionItem({
               depth={depth + 1}
             />
           ))}
+          {/* Only allow sub-sections at depth 0 (max 2 levels) */}
+          {depth === 0 && (
+            <AddSubSectionRow projectId={projectId} parentId={section.id} />
+          )}
         </div>
       )}
     </div>

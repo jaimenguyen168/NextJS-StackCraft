@@ -134,7 +134,14 @@ export const projectsRouter = createTRPCRouter({
           username_slug: { username: input.username, slug: input.slug },
           published: true,
         },
-        include: { contentBlocks: { orderBy: { order: "asc" } } },
+        include: {
+          contentBlocks: { orderBy: { order: "asc" } },
+          sections: {
+            where: { parentId: null },
+            orderBy: { order: "asc" },
+            include: { children: { orderBy: { order: "asc" } } },
+          },
+        },
       });
     }),
 
