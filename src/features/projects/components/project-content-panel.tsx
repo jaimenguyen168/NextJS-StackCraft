@@ -1,15 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SparklesIcon } from "lucide-react";
 import MermaidDiagram from "@/components/mermaid-diagram";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { useProject } from "@/trpc/hooks/use-projects";
+import "@scalar/api-reference-react/style.css";
+
+const ApiReferenceReact = dynamic(
+  () => import("@scalar/api-reference-react").then((m) => m.ApiReferenceReact),
+  { ssr: false },
+);
 
 interface ContentBlock {
   id: string;
   kind: string;
+  type?: string;
   title: string;
   content: string;
   body?: string | null;
@@ -31,14 +39,19 @@ interface Section {
 }
 
 function Block({ block }: { block: ContentBlock }) {
-  return (
-    <div
-      key={block.id}
-      id={`block-${block.id}`}
-      className="space-y-3 scroll-mt-4"
-    >
-      <h2 className="text-base font-semibold border-b pb-2">{block.title}</h2>
-      {block.kind === "DIAGRAM" ? (
+  const renderContent = () => {
+    if (block.type === "openapi_spec") {
+      return (
+        <ApiReferenceReact
+          configuration={{
+            content: block.content,
+          }}
+        />
+      );
+    }
+
+    if (block.kind === "DIAGRAM") {
+      return (
         <div className="space-y-3">
           <MermaidDiagram content={block.content} />
           {block.body && (
@@ -49,13 +62,22 @@ function Block({ block }: { block: ContentBlock }) {
             </div>
           )}
         </div>
-      ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {block.content}
-          </ReactMarkdown>
-        </div>
-      )}
+      );
+    }
+
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {block.content}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
+  return (
+    <div id={`block-${block.id}`} className="space-y-3 scroll-mt-4">
+      <h2 className="text-base font-semibold border-b pb-2">{block.title}</h2>
+      {renderContent()}
     </div>
   );
 }

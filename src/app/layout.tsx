@@ -3,7 +3,7 @@ import { Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import { SuppressWarnings, ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/client";
 
 const montserrat = Montserrat({
@@ -50,6 +50,7 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
+              <SuppressWarnings />
               {children}
               <Toaster />
             </ThemeProvider>

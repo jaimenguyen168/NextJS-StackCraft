@@ -46,7 +46,6 @@ type ParsedIntent = {
 function validateMermaid(code: string): { valid: boolean; issues: string[] } {
   const issues: string[] = [];
 
-  // Must start with a known diagram type (after optional frontmatter)
   const withoutFrontmatter = code.replace(/^---[\s\S]*?---\n/, "").trim();
   const validStarts =
     /^(graph|flowchart|erDiagram|sequenceDiagram|classDiagram|gantt|pie|journey|gitGraph|block-beta)/;
@@ -54,12 +53,10 @@ function validateMermaid(code: string): { valid: boolean; issues: string[] } {
     issues.push("Missing or invalid diagram type declaration");
   }
 
-  // Invalid edge label syntax -->|label|>
   if (/\|>\s/.test(code) || /\|>$/.test(code)) {
     issues.push("Invalid edge label syntax: use -->|label| not -->|label|>");
   }
 
-  // Bare node definitions (word space WORD with no brackets)
   const bareNodeLines = code
     .split("\n")
     .filter((line) => /^\s+[A-Za-z0-9_]+\s+[A-Z_]{2,}$/.test(line.trim()));
@@ -69,7 +66,6 @@ function validateMermaid(code: string): { valid: boolean; issues: string[] } {
     );
   }
 
-  // Unclosed brackets
   const openBrackets = (code.match(/\[/g) ?? []).length;
   const closeBrackets = (code.match(/\]/g) ?? []).length;
   if (openBrackets !== closeBrackets) {
@@ -120,11 +116,68 @@ Fix ALL issues and return ONLY the corrected raw Mermaid code. No fences, no exp
     console.warn(`Mermaid attempt ${attempt + 1} failed:`, issues);
   }
 
-  // Return last attempt even if imperfect — better than throwing
   console.error(
     "Could not produce valid Mermaid after retries, using last attempt",
   );
   return lastCode;
+}
+
+// ─── OpenAPI spec generation ──────────────────────────────────────────────────
+
+async function generateOpenApiSpec(
+  instruction: string,
+  projectDescription: string,
+  maxRetries = 2,
+): Promise<string> {
+  let lastJson = "";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const prompt =
+      attempt === 0
+        ? `Project description: ${projectDescription}
+
+Generate a valid OpenAPI 3.0 JSON spec for this project's API.
+Instruction: ${instruction}
+
+Return ONLY the raw JSON object. No markdown fences, no explanation, no preamble.`
+        : `The following OpenAPI spec has JSON syntax errors. Fix it and return ONLY valid JSON:
+
+${lastJson}
+
+Return ONLY the corrected raw JSON. No fences, no explanation.`;
+
+    const { text } = await generateText({
+      model,
+      system: `You are an API documentation expert. Generate valid OpenAPI 3.0 JSON specifications.
+
+STRICT RULES:
+- Return ONLY a valid JSON object starting with {
+- Must include: openapi, info, paths fields at minimum
+- Use "openapi": "3.0.0"
+- All path operations must include summary, responses
+- Response objects must include description
+- No markdown fences, no explanation, no preamble — raw JSON only`,
+      prompt,
+    });
+
+    const cleaned = text
+      .trim()
+      .replace(/```json|```/g, "")
+      .trim();
+
+    try {
+      JSON.parse(cleaned); // validate it's parseable
+      return cleaned;
+    } catch {
+      lastJson = cleaned;
+      console.warn(`OpenAPI attempt ${attempt + 1} failed: invalid JSON`);
+    }
+  }
+
+  console.error(
+    "Could not produce valid OpenAPI JSON after retries, using last attempt",
+  );
+  return lastJson;
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -168,7 +221,7 @@ export async function POST(request: Request) {
     const blockList = project.contentBlocks
       .map(
         (b) =>
-          `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id})`,
+          `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id}, type: ${b.type})`,
       )
       .join("\n");
 
@@ -212,7 +265,10 @@ Rules:
 - Use "deletes" when the user says "remove", "delete", or "get rid of"
 - Never create a block or section with a title that already exists
 - All arrays can be empty if nothing matches
-- "type" should be a short snake_case identifier like: overview, architecture, class_diagram, erd, flowchart, timeline, security, api_structure, tasks`,
+- "type" should be a short snake_case identifier. Supported types include:
+  overview, architecture, class_diagram, erd, flowchart, timeline, security, api_structure, tasks
+  openapi_spec → use this type when the user asks for "API spec", "OpenAPI", "Swagger spec", or "API documentation spec"
+- For openapi_spec: always use kind "DOCUMENT" — the content will be raw JSON, not Markdown`,
       prompt: `User request: "${prompt}"
 
 Existing sections:
@@ -299,14 +355,21 @@ Return the JSON object.`,
         if (!block) return;
 
         if (block.kind === "DOCUMENT") {
-          const { text: newContent } = await generateText({
-            model,
-            system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
-            prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
-          });
+          const isOpenApi = block.type === "openapi_spec";
+          const newContent = isOpenApi
+            ? await generateOpenApiSpec(target.instruction, project.description)
+            : await (async () => {
+                const { text } = await generateText({
+                  model,
+                  system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
+                  prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
+                });
+                return text.trim();
+              })();
+
           await prisma.contentBlock.update({
             where: { id: block.id },
-            data: { content: newContent.trim() },
+            data: { content: newContent },
           });
         } else {
           const newContent = await generateValidDiagram(
@@ -444,6 +507,11 @@ async function generateBlockContent(
   item: IntentCreate,
   projectDescription: string,
 ): Promise<string> {
+  // OpenAPI spec — generate JSON not Markdown
+  if (item.type === "openapi_spec") {
+    return generateOpenApiSpec(item.instruction, projectDescription);
+  }
+
   if (item.kind === "DOCUMENT") {
     const { text } = await generateText({
       model,
