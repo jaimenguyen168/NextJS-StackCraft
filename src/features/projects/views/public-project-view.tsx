@@ -1,7 +1,5 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MermaidDiagram from "@/components/mermaid-diagram";
@@ -11,6 +9,8 @@ import { BookOpenIcon, ExternalLinkIcon } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useProjectBySlug } from "@/trpc/hooks/use-projects";
 
 interface PublicProjectViewProps {
   username: string;
@@ -21,10 +21,7 @@ export default function PublicProjectView({
   username,
   projectSlug,
 }: PublicProjectViewProps) {
-  const trpc = useTRPC();
-  const { data: project } = useSuspenseQuery(
-    trpc.projects.getBySlug.queryOptions({ username, slug: projectSlug }),
-  );
+  const { project } = useProjectBySlug(username, projectSlug);
 
   if (!project)
     return (
@@ -41,7 +38,7 @@ export default function PublicProjectView({
   const collaborators = project.collaborators ?? [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Top nav */}
       <header className="border-b px-6 py-4 flex items-center justify-between">
         <div>
@@ -57,12 +54,7 @@ export default function PublicProjectView({
               </Link>
             </Button>
           )}
-          <Link
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Built with StackCraft
-          </Link>
+          <ThemeToggle variant="ghost" />
         </div>
       </header>
 
@@ -91,25 +83,11 @@ export default function PublicProjectView({
         </div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-6 py-10 space-y-10">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-10 space-y-10">
         {/* Description */}
         <p className="text-sm text-muted-foreground">{project.description}</p>
 
-        {/* GitHub / visit link */}
-        {project.githubUrl && (
-          <a
-            href={project.githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-medium text-foreground border rounded-lg px-4 py-2 hover:bg-muted/60 transition-colors"
-          >
-            <FaGithub className="size-4" />
-            Visit project on GitHub
-            <ExternalLinkIcon className="size-3 text-muted-foreground" />
-          </a>
-        )}
-
-        {/* Main content (abstract, background, etc.) */}
+        {/* Main content */}
         {project.mainContent && (
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -145,20 +123,34 @@ export default function PublicProjectView({
           </div>
         ))}
 
+        {/* GitHub / visit link */}
+        {project.githubUrl && (
+          <Link
+            href={project.githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-foreground border rounded-lg px-4 py-2 hover:bg-muted/60 transition-colors"
+          >
+            <FaGithub className="size-4" />
+            Visit project on GitHub
+            <ExternalLinkIcon className="size-3 text-muted-foreground" />
+          </Link>
+        )}
+
         {/* Collaborators */}
         {collaborators.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
             <h2 className="text-lg font-semibold">Collaborators</h2>
             <div className="flex flex-wrap gap-4">
               {collaborators.map(({ user }) => (
-                <a
+                <Link
                   key={user.id}
                   href={user.githubUrl ?? `https://github.com/${user.username}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-2 group w-24"
                 >
-                  <Avatar className="size-16 rounded-lg border border-border group-hover:ring-2 group-hover:ring-primary transition-all">
+                  <Avatar className="size-16 group-hover:ring-2 group-hover:ring-primary transition-all">
                     <AvatarImage
                       src={user.imageUrl ?? undefined}
                       alt={user.name ?? user.username}
@@ -171,12 +163,29 @@ export default function PublicProjectView({
                   <span className="text-xs text-center text-primary group-hover:underline truncate w-full">
                     {user.name ?? user.username}
                   </span>
-                </a>
+                </Link>
               ))}
             </div>
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t py-6 px-6">
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-3 text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <Image
+            src="/logo.svg"
+            alt="StackCraft"
+            width={20}
+            height={20}
+            className="opacity-50 group-hover:opacity-100 transition-opacity"
+          />
+          <span className="text-sm">Built with StackCraft</span>
+        </Link>
+      </footer>
     </div>
   );
 }

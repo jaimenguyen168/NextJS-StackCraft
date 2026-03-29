@@ -108,7 +108,7 @@ export default function ProjectContentPanel() {
   if (!displayProject) return null;
 
   const sections = displayProject.sections ?? [];
-  const ungroupedBlocks = displayProject.contentBlocks.filter(
+  const ungroupedBlocks = (displayProject.contentBlocks ?? []).filter(
     (b) => !b.sectionId,
   );
 

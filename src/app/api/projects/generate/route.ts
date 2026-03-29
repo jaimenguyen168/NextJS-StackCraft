@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
+import { getProjectSnapshot } from "@/trpc/routers/projects";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
@@ -161,7 +162,7 @@ async function bootstrapProject(
           "Requirements Specification",
         ],
         edited: [],
-        projectState: { description },
+        projectState: await getProjectSnapshot(projectId),
       },
     },
   });

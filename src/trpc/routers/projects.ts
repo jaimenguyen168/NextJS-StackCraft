@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { slugify } from "@/lib/utils";
 
-async function getProjectSnapshot(projectId: string) {
+export async function getProjectSnapshot(projectId: string) {
   const project = await prisma.project.findFirst({
     where: { id: projectId },
     include: {

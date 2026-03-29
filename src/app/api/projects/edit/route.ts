@@ -3,56 +3,12 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
+import { getProjectSnapshot } from "@/trpc/routers/projects";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
 
-async function getFullProjectSnapshot(projectId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId },
-    include: {
-      contentBlocks: { orderBy: { order: "asc" } },
-      sections: {
-        where: { parentId: null },
-        orderBy: { order: "asc" },
-        include: { children: { orderBy: { order: "asc" } } },
-      },
-    },
-  });
-
-  return {
-    name: project?.name ?? "",
-    description: project?.description ?? "",
-    mainColor: project?.mainColor ?? null,
-    mainContent: project?.mainContent ?? null,
-    imageUrl: project?.imageUrl ?? null,
-    githubUrl: project?.githubUrl ?? null,
-    contentBlocks:
-      project?.contentBlocks.map((b) => ({
-        id: b.id,
-        kind: b.kind,
-        type: b.type,
-        title: b.title,
-        content: b.content,
-        body: b.body,
-        order: b.order,
-        sectionId: b.sectionId,
-      })) ?? [],
-    sections:
-      project?.sections.map((s) => ({
-        id: s.id,
-        title: s.title,
-        order: s.order,
-        parentId: s.parentId,
-        children: s.children.map((c) => ({
-          id: c.id,
-          title: c.title,
-          order: c.order,
-          parentId: c.parentId,
-        })),
-      })) ?? [],
-  };
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type IntentEdit = {
   id: string;
@@ -85,6 +41,94 @@ type ParsedIntent = {
   deletes: IntentDelete[];
 };
 
+// ─── Mermaid validation ───────────────────────────────────────────────────────
+
+function validateMermaid(code: string): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+
+  // Must start with a known diagram type (after optional frontmatter)
+  const withoutFrontmatter = code.replace(/^---[\s\S]*?---\n/, "").trim();
+  const validStarts =
+    /^(graph|flowchart|erDiagram|sequenceDiagram|classDiagram|gantt|pie|journey|gitGraph|block-beta)/;
+  if (!validStarts.test(withoutFrontmatter)) {
+    issues.push("Missing or invalid diagram type declaration");
+  }
+
+  // Invalid edge label syntax -->|label|>
+  if (/\|>\s/.test(code) || /\|>$/.test(code)) {
+    issues.push("Invalid edge label syntax: use -->|label| not -->|label|>");
+  }
+
+  // Bare node definitions (word space WORD with no brackets)
+  const bareNodeLines = code
+    .split("\n")
+    .filter((line) => /^\s+[A-Za-z0-9_]+\s+[A-Z_]{2,}$/.test(line.trim()));
+  if (bareNodeLines.length > 0) {
+    issues.push(
+      `Bare node labels without brackets: ${bareNodeLines.join(", ")}`,
+    );
+  }
+
+  // Unclosed brackets
+  const openBrackets = (code.match(/\[/g) ?? []).length;
+  const closeBrackets = (code.match(/\]/g) ?? []).length;
+  if (openBrackets !== closeBrackets) {
+    issues.push("Mismatched square brackets");
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+async function generateValidDiagram(
+  systemPrompt: string,
+  userPrompt: string,
+  maxRetries = 2,
+): Promise<string> {
+  let lastCode = "";
+  let lastIssues: string[] = [];
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const prompt =
+      attempt === 0
+        ? userPrompt
+        : `The following Mermaid code has syntax errors that must be fixed:
+
+\`\`\`
+${lastCode}
+\`\`\`
+
+Issues found:
+${lastIssues.map((i) => `- ${i}`).join("\n")}
+
+Fix ALL issues and return ONLY the corrected raw Mermaid code. No fences, no explanation.`;
+
+    const { text } = await generateText({
+      model,
+      system: systemPrompt,
+      prompt,
+    });
+    const cleaned = text
+      .trim()
+      .replace(/```mermaid|```/g, "")
+      .trim();
+    const { valid, issues } = validateMermaid(cleaned);
+
+    if (valid) return cleaned;
+
+    lastCode = cleaned;
+    lastIssues = issues;
+    console.warn(`Mermaid attempt ${attempt + 1} failed:`, issues);
+  }
+
+  // Return last attempt even if imperfect — better than throwing
+  console.error(
+    "Could not produce valid Mermaid after retries, using last attempt",
+  );
+  return lastCode;
+}
+
+// ─── Route handler ────────────────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -102,12 +146,8 @@ export async function POST(request: Request) {
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, userId },
-      include: {
-        contentBlocks: true,
-        sections: true,
-      },
+      include: { contentBlocks: true, sections: true },
     });
-
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -164,9 +204,9 @@ Format:
 }
 
 Rules:
-- Use "createSections" when the user asks to "add a section", "create a ... section", or asks for grouped content (e.g. "architecture section with a class diagram and explanation")
-- Each section can contain multiple blocks — include all blocks the user asked for inside that section
-- Set "body": true on DIAGRAM blocks when the user asks for an explanation, description, or commentary on the diagram
+- Use "createSections" when the user asks to "add a section", "create a ... section", or asks for grouped content
+- Each section can contain multiple blocks
+- Set "body": true on DIAGRAM blocks when the user asks for an explanation or commentary
 - Use "creates" only for loose standalone blocks not inside a section
 - Use "edits" when the user references an existing block by name for changes
 - Use "deletes" when the user says "remove", "delete", or "get rid of"
@@ -253,7 +293,7 @@ Return the JSON object.`,
     );
 
     await Promise.all([
-      // ── Edits ────────────────────────────────────────────────────────────
+      // ── Edits ──────────────────────────────────────────────────────────
       ...parsed.edits.map(async (target) => {
         const block = project.contentBlocks.find((b) => b.id === target.id);
         if (!block) return;
@@ -269,20 +309,35 @@ Return the JSON object.`,
             data: { content: newContent.trim() },
           });
         } else {
-          const { text: newContent } = await generateText({
-            model,
-            system: `You are a diagram editing agent. Apply the edit to the Mermaid diagram and return the full updated Mermaid code. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
-            prompt: `Current Mermaid diagram "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated Mermaid code.`,
-          });
+          const newContent = await generateValidDiagram(
+            `You are a Mermaid diagram expert. Fix or edit the diagram per the instruction.
+
+STRICT RULES:
+- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
+- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
+- Edge labels: -->|label| NOT -->|label|>
+- Node labels with spaces MUST use brackets: A[My Label] not A My Label
+- Every node ID must be alphanumeric with no spaces
+- Subgraph names must not contain special characters
+- No markdown fences, no explanation, no preamble — raw Mermaid only`,
+            `Current Mermaid diagram "${block.title}":
+\`\`\`
+${block.content}
+\`\`\`
+
+Edit instruction: ${target.instruction}
+
+Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
+          );
           await prisma.contentBlock.update({
             where: { id: block.id },
-            data: { content: newContent.trim() },
+            data: { content: newContent },
           });
         }
         edited.push({ id: block.id, title: block.title });
       }),
 
-      // ── Loose creates ────────────────────────────────────────────────────
+      // ── Loose creates ───────────────────────────────────────────────────
       ...parsed.creates.map(async (item, i) => {
         const content = await generateBlockContent(item, project.description);
         let body: string | null = null;
@@ -303,7 +358,7 @@ Return the JSON object.`,
         created.push({ id: newBlock.id, title: newBlock.title });
       }),
 
-      // ── Section creates ──────────────────────────────────────────────────
+      // ── Section creates ─────────────────────────────────────────────────
       ...parsed.createSections.map(async (sectionItem, si) => {
         const section = await prisma.section.create({
           data: {
@@ -313,7 +368,6 @@ Return the JSON object.`,
           },
         });
 
-        // Generate blocks sequentially so body can reference diagram content
         for (const [bi, blockItem] of sectionItem.blocks.entries()) {
           const content = await generateBlockContent(
             blockItem,
@@ -340,7 +394,7 @@ Return the JSON object.`,
         created.push({ id: section.id, title: sectionItem.title });
       }),
 
-      // ── Deletes ──────────────────────────────────────────────────────────
+      // ── Deletes ─────────────────────────────────────────────────────────
       ...parsed.deletes.map(async (target) => {
         const block = project.contentBlocks.find((b) => b.id === target.id);
         if (!block) return;
@@ -358,19 +412,14 @@ Return the JSON object.`,
       parts.push(`Deleted: ${deleted.map((e) => e.title).join(", ")}`);
     const responseMessage = parts.join(" · ");
 
-    const projectState = await getFullProjectSnapshot(projectId);
+    const projectState = await getProjectSnapshot(projectId);
 
     await prisma.chatMessage.create({
       data: {
         chatId: chat.id,
         role: "ASSISTANT",
         content: responseMessage,
-        snapshot: {
-          edited,
-          created,
-          deleted,
-          projectState,
-        },
+        snapshot: { edited, created, deleted, projectState },
       },
     });
 
@@ -403,12 +452,19 @@ async function generateBlockContent(
     });
     return text.trim();
   } else {
-    const { text } = await generateText({
-      model,
-      system: `You are a diagram generation agent. Generate a Mermaid diagram. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
-      prompt: `Project description: ${projectDescription}\n\nGenerate a new "${item.title}" diagram.\nInstruction: ${item.instruction}`,
-    });
-    return text.trim();
+    return generateValidDiagram(
+      `You are a Mermaid diagram expert generating a new diagram.
+
+STRICT RULES:
+- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
+- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
+- Edge labels: -->|label| NOT -->|label|>
+- Node labels with spaces MUST use brackets: A[My Label] not A My Label
+- Every node ID must be alphanumeric with no spaces
+- Subgraph names must not contain special characters
+- No markdown fences, no explanation, no preamble — raw Mermaid only`,
+      `Project description: ${projectDescription}\n\nGenerate a "${item.title}" Mermaid diagram.\nInstruction: ${item.instruction}`,
+    );
   }
 }
 

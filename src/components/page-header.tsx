@@ -1,20 +1,17 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ReactNode } from "react";
 
 interface PageHeaderProps {
   title: string;
   className?: string;
-  actions?: React.ReactNode;
+  actions?: ReactNode;
 }
 
 const PageHeader = ({ title, className, actions }: PageHeaderProps) => {
-  const { theme, setTheme } = useTheme();
-
   return (
     <div
       className={cn(
@@ -28,14 +25,7 @@ const PageHeader = ({ title, className, actions }: PageHeaderProps) => {
       </div>
       <div className="flex items-center gap-3">
         {actions}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        </Button>
+        <ThemeToggle variant="outline" />
       </div>
     </div>
   );

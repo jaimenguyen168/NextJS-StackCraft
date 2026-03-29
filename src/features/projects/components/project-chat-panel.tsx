@@ -20,9 +20,7 @@ import {
 import { ProjectOutline } from "@/features/projects/components/project-outline";
 import { ProjectSettings } from "@/features/projects/components/project-settings";
 import { ProjectHistory } from "@/features/projects/components/project-history";
-import { useTRPC } from "@/trpc/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { useProject } from "@/trpc/hooks/use-projects";
+import { useInvalidateProject, useProject } from "@/trpc/hooks/use-projects";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -30,14 +28,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 export default function ProjectChatPanel() {
   const { projectId } = useProjectSnapshot();
   const { project } = useProject(projectId);
+  const invalidateProject = useInvalidateProject();
 
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -76,12 +73,7 @@ export default function ProjectChatPanel() {
       toast.success(data.message);
       setPrompt("");
 
-      await queryClient.refetchQueries({
-        queryKey: trpc.projects.getById.queryKey({ id: projectId }),
-      });
-      await queryClient.invalidateQueries({
-        queryKey: trpc.projects.getChat.queryKey({ projectId }),
-      });
+      await invalidateProject(projectId);
     } catch {
       toast.error("Failed to send edit request");
     } finally {
