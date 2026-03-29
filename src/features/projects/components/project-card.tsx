@@ -21,8 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Project } from "@/generated/prisma/client";
-import { useTRPC } from "@/trpc/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTogglePublish } from "@/trpc/hooks/use-projects";
 import { toast } from "sonner";
 import { ProjectDeleteDialog } from "@/features/projects/components/project-delete-dialog";
 
@@ -41,29 +40,8 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function ProjectCard({ project, onClick }: ProjectCardProps) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const publish = useMutation(
-    trpc.projects.publish.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
-        toast.success("Project published");
-      },
-      onError: () => toast.error("Failed to publish"),
-    }),
-  );
-
-  const unpublish = useMutation(
-    trpc.projects.unpublish.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
-        toast.success("Project unpublished");
-      },
-      onError: () => toast.error("Failed to unpublish"),
-    }),
-  );
+  const { toggle, isPending } = useTogglePublish();
 
   const publicUrl = `/${project.username}/${project.slug}`;
 
@@ -82,7 +60,6 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
           onClick && "cursor-pointer",
         )}
       >
-        {/* Top row: name + time + dropdown */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="flex size-8 items-center justify-center rounded-lg bg-muted shrink-0">
@@ -123,9 +100,13 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
+                      disabled={isPending}
                       onClick={(e) => {
                         e.stopPropagation();
-                        unpublish.mutate({ id: project.id });
+                        toggle(project.id, false, {
+                          onSuccess: () => toast.success("Project unpublished"),
+                          onError: () => toast.error("Failed to unpublish"),
+                        });
                       }}
                     >
                       <EyeOffIcon className="size-3.5 mr-2" />
@@ -134,9 +115,13 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
                   </>
                 ) : (
                   <DropdownMenuItem
+                    disabled={isPending}
                     onClick={(e) => {
                       e.stopPropagation();
-                      publish.mutate({ id: project.id });
+                      toggle(project.id, true, {
+                        onSuccess: () => toast.success("Project published"),
+                        onError: () => toast.error("Failed to publish"),
+                      });
                     }}
                   >
                     <GlobeIcon className="size-3.5 mr-2" />
@@ -159,12 +144,10 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
           </div>
         </div>
 
-        {/* Description */}
         <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
           {project.description}
         </p>
 
-        {/* Bottom row: status + published badges */}
         <div className="flex items-center gap-1.5 mt-auto">
           <Badge
             className={cn(

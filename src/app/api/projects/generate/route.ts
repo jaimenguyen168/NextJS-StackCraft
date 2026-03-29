@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
+import { getProjectSnapshot } from "@/trpc/routers/projects";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
@@ -94,15 +95,13 @@ async function bootstrapProject(
   // Upsert the owner as a collaborator
   await prisma.projectCollaborator.upsert({
     where: { projectId_userId: { projectId, userId } },
-    create: { projectId, userId, role: "OWNER" },
-    update: { role: "OWNER" },
+    create: { projectId, userId, role: "OWNER", status: "ACCEPTED" },
+    update: { role: "OWNER", status: "ACCEPTED" },
   });
 
-  // Stamp the project identity fields
   await prisma.project.update({
     where: { id: projectId },
     data: {
-      mainColor: PRIMARY_COLOR,
       mainContent,
       tags,
     },
@@ -161,7 +160,7 @@ async function bootstrapProject(
           "Requirements Specification",
         ],
         edited: [],
-        projectState: { description },
+        projectState: await getProjectSnapshot(projectId),
       },
     },
   });

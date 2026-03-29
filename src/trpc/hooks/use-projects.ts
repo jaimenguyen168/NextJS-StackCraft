@@ -23,11 +23,31 @@ export function useProject(projectId: string) {
   return { project, ...rest };
 }
 
+export function useProjectBySlug(username: string, slug: string) {
+  const trpc = useTRPC();
+  const { data: project, ...rest } = useSuspenseQuery(
+    trpc.projects.getBySlug.queryOptions({ username, slug }),
+  );
+  return { project, ...rest };
+}
+
 export function useCreateProject() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return useMutation(
     trpc.projects.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+      },
+    }),
+  );
+}
+
+export function useDeleteProject() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.delete.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
       },
@@ -97,17 +117,43 @@ export function useUpdateProjectGithubUrl(projectId: string) {
   );
 }
 
-export function useUpdateProjectImageUrl(projectId: string) {
+export function useUpdateProjectLogoUrl(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return useMutation(
-    trpc.projects.updateImageUrl.mutationOptions({
+    trpc.projects.updateLogoUrl.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
         );
         queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
       },
+    }),
+  );
+}
+
+export function useAddProjectImage(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.addProjectImage.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
+    }),
+  );
+}
+
+export function useDeleteProjectImage(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteProjectImage.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
     }),
   );
 }
@@ -308,4 +354,47 @@ export function useRestoreProject(projectId: string) {
 export function useGetChat(projectId: string) {
   const trpc = useTRPC();
   return useSuspenseQuery(trpc.projects.getChat.queryOptions({ projectId }));
+}
+
+export function useInvalidateProject() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return async (projectId: string) => {
+    await queryClient.refetchQueries({
+      queryKey: trpc.projects.getById.queryKey({ id: projectId }),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: trpc.projects.getChat.queryKey({ projectId }),
+    });
+  };
+}
+
+export function useTogglePublish() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  const invalidate = () =>
+    queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
+
+  const publish = useMutation(
+    trpc.projects.publish.mutationOptions({ onSuccess: invalidate }),
+  );
+  const unpublish = useMutation(
+    trpc.projects.unpublish.mutationOptions({ onSuccess: invalidate }),
+  );
+
+  const toggle = (
+    id: string,
+    published: boolean,
+    callbacks?: { onSuccess?: () => void; onError?: () => void },
+  ) => {
+    const mutation = published ? publish : unpublish;
+    mutation.mutate({ id }, callbacks);
+  };
+
+  return {
+    toggle,
+    isPending: publish.isPending || unpublish.isPending,
+  };
 }

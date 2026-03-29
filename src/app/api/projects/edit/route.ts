@@ -3,61 +3,18 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
+import { getProjectSnapshot } from "@/trpc/routers/projects";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 const model = groq("llama-3.3-70b-versatile");
 
-async function getFullProjectSnapshot(projectId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId },
-    include: {
-      contentBlocks: { orderBy: { order: "asc" } },
-      sections: {
-        where: { parentId: null },
-        orderBy: { order: "asc" },
-        include: { children: { orderBy: { order: "asc" } } },
-      },
-    },
-  });
-
-  return {
-    name: project?.name ?? "",
-    description: project?.description ?? "",
-    mainColor: project?.mainColor ?? null,
-    mainContent: project?.mainContent ?? null,
-    imageUrl: project?.imageUrl ?? null,
-    githubUrl: project?.githubUrl ?? null,
-    contentBlocks:
-      project?.contentBlocks.map((b) => ({
-        id: b.id,
-        kind: b.kind,
-        type: b.type,
-        title: b.title,
-        content: b.content,
-        body: b.body,
-        order: b.order,
-        sectionId: b.sectionId,
-      })) ?? [],
-    sections:
-      project?.sections.map((s) => ({
-        id: s.id,
-        title: s.title,
-        order: s.order,
-        parentId: s.parentId,
-        children: s.children.map((c) => ({
-          id: c.id,
-          title: c.title,
-          order: c.order,
-          parentId: c.parentId,
-        })),
-      })) ?? [],
-  };
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type IntentEdit = {
   id: string;
   kind: "DOCUMENT" | "DIAGRAM";
   instruction: string;
+  editBody?: boolean;
 };
 
 type IntentCreate = {
@@ -66,6 +23,7 @@ type IntentCreate = {
   type: string;
   instruction: string;
   body?: boolean;
+  sectionId?: string | null;
 };
 
 type IntentCreateSection = {
@@ -85,6 +43,147 @@ type ParsedIntent = {
   deletes: IntentDelete[];
 };
 
+// ─── Mermaid validation ───────────────────────────────────────────────────────
+
+function validateMermaid(code: string): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+
+  const withoutFrontmatter = code.replace(/^---[\s\S]*?---\n/, "").trim();
+  const validStarts =
+    /^(graph|flowchart|erDiagram|sequenceDiagram|classDiagram|gantt|pie|journey|gitGraph|block-beta)/;
+  if (!validStarts.test(withoutFrontmatter)) {
+    issues.push("Missing or invalid diagram type declaration");
+  }
+
+  if (/\|>\s/.test(code) || /\|>$/.test(code)) {
+    issues.push("Invalid edge label syntax: use -->|label| not -->|label|>");
+  }
+
+  const bareNodeLines = code
+    .split("\n")
+    .filter((line) => /^\s+[A-Za-z0-9_]+\s+[A-Z_]{2,}$/.test(line.trim()));
+  if (bareNodeLines.length > 0) {
+    issues.push(
+      `Bare node labels without brackets: ${bareNodeLines.join(", ")}`,
+    );
+  }
+
+  const openBrackets = (code.match(/\[/g) ?? []).length;
+  const closeBrackets = (code.match(/\]/g) ?? []).length;
+  if (openBrackets !== closeBrackets) {
+    issues.push("Mismatched square brackets");
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+async function generateValidDiagram(
+  systemPrompt: string,
+  userPrompt: string,
+  maxRetries = 2,
+): Promise<string> {
+  let lastCode = "";
+  let lastIssues: string[] = [];
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const prompt =
+      attempt === 0
+        ? userPrompt
+        : `The following Mermaid code has syntax errors that must be fixed:
+
+\`\`\`
+${lastCode}
+\`\`\`
+
+Issues found:
+${lastIssues.map((i) => `- ${i}`).join("\n")}
+
+Fix ALL issues and return ONLY the corrected raw Mermaid code. No fences, no explanation.`;
+
+    const { text } = await generateText({
+      model,
+      system: systemPrompt,
+      prompt,
+    });
+    const cleaned = text
+      .trim()
+      .replace(/```mermaid|```/g, "")
+      .trim();
+    const { valid, issues } = validateMermaid(cleaned);
+
+    if (valid) return cleaned;
+
+    lastCode = cleaned;
+    lastIssues = issues;
+    console.warn(`Mermaid attempt ${attempt + 1} failed:`, issues);
+  }
+
+  console.error(
+    "Could not produce valid Mermaid after retries, using last attempt",
+  );
+  return lastCode;
+}
+
+// ─── OpenAPI spec generation ──────────────────────────────────────────────────
+
+async function generateOpenApiSpec(
+  instruction: string,
+  projectDescription: string,
+  maxRetries = 2,
+): Promise<string> {
+  let lastJson = "";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const prompt =
+      attempt === 0
+        ? `Project description: ${projectDescription}
+
+Generate a valid OpenAPI 3.0 JSON spec for this project's API.
+Instruction: ${instruction}
+
+Return ONLY the raw JSON object. No markdown fences, no explanation, no preamble.`
+        : `The following OpenAPI spec has JSON syntax errors. Fix it and return ONLY valid JSON:
+
+${lastJson}
+
+Return ONLY the corrected raw JSON. No fences, no explanation.`;
+
+    const { text } = await generateText({
+      model,
+      system: `You are an API documentation expert. Generate valid OpenAPI 3.0 JSON specifications.
+
+STRICT RULES:
+- Return ONLY a valid JSON object starting with {
+- Must include: openapi, info, paths fields at minimum
+- Use "openapi": "3.0.0"
+- All path operations must include summary, responses
+- Response objects must include description
+- No markdown fences, no explanation, no preamble — raw JSON only`,
+      prompt,
+    });
+
+    const cleaned = text
+      .trim()
+      .replace(/```json|```/g, "")
+      .trim();
+
+    try {
+      JSON.parse(cleaned);
+      return cleaned;
+    } catch {
+      lastJson = cleaned;
+      console.warn(`OpenAPI attempt ${attempt + 1} failed: invalid JSON`);
+    }
+  }
+
+  console.error(
+    "Could not produce valid OpenAPI JSON after retries, using last attempt",
+  );
+  return lastJson;
+}
+
+// ─── Route handler ────────────────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -102,12 +201,8 @@ export async function POST(request: Request) {
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, userId },
-      include: {
-        contentBlocks: true,
-        sections: true,
-      },
+      include: { contentBlocks: true, sections: true },
     });
-
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -126,10 +221,13 @@ export async function POST(request: Request) {
     const lastSnapshot = lastMessage?.snapshot ?? null;
 
     const blockList = project.contentBlocks
-      .map(
-        (b) =>
-          `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id})`,
-      )
+      .map((b) => {
+        const base = `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id}, type: ${b.type})`;
+        if (b.kind === "DIAGRAM") {
+          return `${base} [explanation/body: ${b.body ? "yes" : "no"}]`;
+        }
+        return base;
+      })
       .join("\n");
 
     const sectionList = project.sections
@@ -145,16 +243,16 @@ Respond ONLY with a valid JSON object. No explanation, no markdown fences.
 Format:
 {
   "edits": [
-    { "id": "block_id", "kind": "DOCUMENT" | "DIAGRAM", "instruction": "specific edit instruction" }
+    { "id": "block_id", "kind": "DOCUMENT" | "DIAGRAM", "instruction": "specific edit instruction", "editBody": false }
   ],
   "creates": [
-    { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": false }
+    { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true, "sectionId": "existing_section_id_or_null" }
   ],
   "createSections": [
     {
       "title": "Section Title",
       "blocks": [
-        { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true }
+        { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true, "sectionId": null }
       ]
     }
   ],
@@ -164,22 +262,29 @@ Format:
 }
 
 Rules:
-- Use "createSections" when the user asks to "add a section", "create a ... section", or asks for grouped content (e.g. "architecture section with a class diagram and explanation")
-- Each section can contain multiple blocks — include all blocks the user asked for inside that section
-- Set "body": true on DIAGRAM blocks when the user asks for an explanation, description, or commentary on the diagram
-- Use "creates" only for loose standalone blocks not inside a section
-- Use "edits" when the user references an existing block by name for changes
+- Always set "body": true on DIAGRAM blocks — every diagram must have a prose explanation generated alongside it
+- Set "editBody": true when the user asks to edit, update, or add an explanation/description/body to an existing diagram
+- Match section and block names LOOSELY — partial or approximate names should match:
+  e.g. "require specs" → "Requirements Specification", "arch" → "Architecture", "block diagram" → find the block named "Block Diagram"
+- If the user asks to add a block "under", "inside", "in", or "to" an existing section, use "creates" with the matched section's id in "sectionId" — do NOT create a new section
+- Use "createSections" ONLY when the user explicitly asks to create a brand new section that does not exist yet
+- Use "edits" when the user references an existing block by full or partial name for changes
 - Use "deletes" when the user says "remove", "delete", or "get rid of"
 - Never create a block or section with a title that already exists
 - All arrays can be empty if nothing matches
-- "type" should be a short snake_case identifier like: overview, architecture, class_diagram, erd, flowchart, timeline, security, api_structure, tasks`,
+- "type" should be a short snake_case identifier. Supported types include:
+  overview, architecture, class_diagram, erd, flowchart, timeline, security, api_structure, tasks
+  openapi_spec → use this type when the user asks for "API spec", "OpenAPI", "Swagger spec", or "API documentation spec"
+- For openapi_spec: always use kind "DOCUMENT" — the content will be raw JSON, not Markdown`,
       prompt: `User request: "${prompt}"
 
-Existing sections:
+Existing sections (match loosely by name, use the id when referencing):
 ${sectionList || "None"}
 
-Existing blocks:
+Existing blocks (match loosely by name, use the id when referencing):
 ${blockList || "None"}
+
+IMPORTANT: If the user says to add something "under", "to", or "inside" an existing section, put it in "creates" with the sectionId set to that section's id. Only use "createSections" for brand new sections.
 
 Return the JSON object.`,
     });
@@ -253,40 +358,68 @@ Return the JSON object.`,
     );
 
     await Promise.all([
-      // ── Edits ────────────────────────────────────────────────────────────
+      // ── Edits ──────────────────────────────────────────────────────────
       ...parsed.edits.map(async (target) => {
         const block = project.contentBlocks.find((b) => b.id === target.id);
         if (!block) return;
 
         if (block.kind === "DOCUMENT") {
-          const { text: newContent } = await generateText({
-            model,
-            system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
-            prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
-          });
+          const isOpenApi = block.type === "openapi_spec";
+          const newContent = isOpenApi
+            ? await generateOpenApiSpec(target.instruction, project.description)
+            : await (async () => {
+                const { text } = await generateText({
+                  model,
+                  system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
+                  prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
+                });
+                return text.trim();
+              })();
+
           await prisma.contentBlock.update({
             where: { id: block.id },
-            data: { content: newContent.trim() },
+            data: { content: newContent },
           });
         } else {
-          const { text: newContent } = await generateText({
-            model,
-            system: `You are a diagram editing agent. Apply the edit to the Mermaid diagram and return the full updated Mermaid code. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
-            prompt: `Current Mermaid diagram "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated Mermaid code.`,
-          });
+          const newContent = await generateValidDiagram(
+            `You are a Mermaid diagram expert. Fix or edit the diagram per the instruction.
+
+STRICT RULES:
+- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
+- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
+- Edge labels: -->|label| NOT -->|label|>
+- Node labels with spaces MUST use brackets: A[My Label] not A My Label
+- Every node ID must be alphanumeric with no spaces
+- Subgraph names must not contain special characters
+- No markdown fences, no explanation, no preamble — raw Mermaid only`,
+            `Current Mermaid diagram "${block.title}":
+\`\`\`
+${block.content}
+\`\`\`
+
+Edit instruction: ${target.instruction}
+
+Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
+          );
+
+          let newBody = block.body ?? null;
+          if (block.body || target.editBody) {
+            newBody = await generateDiagramBody(block.title, newContent);
+          }
+
           await prisma.contentBlock.update({
             where: { id: block.id },
-            data: { content: newContent.trim() },
+            data: { content: newContent, body: newBody },
           });
         }
         edited.push({ id: block.id, title: block.title });
       }),
 
-      // ── Loose creates ────────────────────────────────────────────────────
+      // ── Loose creates ───────────────────────────────────────────────────
       ...parsed.creates.map(async (item, i) => {
         const content = await generateBlockContent(item, project.description);
         let body: string | null = null;
-        if (item.kind === "DIAGRAM" && item.body) {
+        if (item.kind === "DIAGRAM") {
           body = await generateDiagramBody(item.title, content);
         }
         const newBlock = await prisma.contentBlock.create({
@@ -298,12 +431,13 @@ Return the JSON object.`,
             content: content.trim(),
             body,
             order: maxBlockOrder + 1 + i,
+            sectionId: item.sectionId ?? null,
           },
         });
         created.push({ id: newBlock.id, title: newBlock.title });
       }),
 
-      // ── Section creates ──────────────────────────────────────────────────
+      // ── Section creates ─────────────────────────────────────────────────
       ...parsed.createSections.map(async (sectionItem, si) => {
         const section = await prisma.section.create({
           data: {
@@ -313,14 +447,13 @@ Return the JSON object.`,
           },
         });
 
-        // Generate blocks sequentially so body can reference diagram content
         for (const [bi, blockItem] of sectionItem.blocks.entries()) {
           const content = await generateBlockContent(
             blockItem,
             project.description,
           );
           let body: string | null = null;
-          if (blockItem.kind === "DIAGRAM" && blockItem.body) {
+          if (blockItem.kind === "DIAGRAM") {
             body = await generateDiagramBody(blockItem.title, content);
           }
           await prisma.contentBlock.create({
@@ -340,7 +473,7 @@ Return the JSON object.`,
         created.push({ id: section.id, title: sectionItem.title });
       }),
 
-      // ── Deletes ──────────────────────────────────────────────────────────
+      // ── Deletes ─────────────────────────────────────────────────────────
       ...parsed.deletes.map(async (target) => {
         const block = project.contentBlocks.find((b) => b.id === target.id);
         if (!block) return;
@@ -358,19 +491,14 @@ Return the JSON object.`,
       parts.push(`Deleted: ${deleted.map((e) => e.title).join(", ")}`);
     const responseMessage = parts.join(" · ");
 
-    const projectState = await getFullProjectSnapshot(projectId);
+    const projectState = await getProjectSnapshot(projectId);
 
     await prisma.chatMessage.create({
       data: {
         chatId: chat.id,
         role: "ASSISTANT",
         content: responseMessage,
-        snapshot: {
-          edited,
-          created,
-          deleted,
-          projectState,
-        },
+        snapshot: { edited, created, deleted, projectState },
       },
     });
 
@@ -395,6 +523,10 @@ async function generateBlockContent(
   item: IntentCreate,
   projectDescription: string,
 ): Promise<string> {
+  if (item.type === "openapi_spec") {
+    return generateOpenApiSpec(item.instruction, projectDescription);
+  }
+
   if (item.kind === "DOCUMENT") {
     const { text } = await generateText({
       model,
@@ -403,12 +535,19 @@ async function generateBlockContent(
     });
     return text.trim();
   } else {
-    const { text } = await generateText({
-      model,
-      system: `You are a diagram generation agent. Generate a Mermaid diagram. Return ONLY the raw Mermaid code, no markdown fences, no explanation.`,
-      prompt: `Project description: ${projectDescription}\n\nGenerate a new "${item.title}" diagram.\nInstruction: ${item.instruction}`,
-    });
-    return text.trim();
+    return generateValidDiagram(
+      `You are a Mermaid diagram expert generating a new diagram.
+
+STRICT RULES:
+- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
+- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
+- Edge labels: -->|label| NOT -->|label|>
+- Node labels with spaces MUST use brackets: A[My Label] not A My Label
+- Every node ID must be alphanumeric with no spaces
+- Subgraph names must not contain special characters
+- No markdown fences, no explanation, no preamble — raw Mermaid only`,
+      `Project description: ${projectDescription}\n\nGenerate a "${item.title}" Mermaid diagram.\nInstruction: ${item.instruction}`,
+    );
   }
 }
 

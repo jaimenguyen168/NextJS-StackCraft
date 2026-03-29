@@ -84,7 +84,11 @@ export function ProjectOutline({
             </button>
           </div>
         )}
-        <ColorPickerRow projectId={projectId} mainColor={project.mainColor} />
+        <ColorPickerRow
+          projectId={projectId}
+          mainColorLight={project.mainColorLight}
+          mainColorDark={project.mainColorDark}
+        />
       </div>
 
       {/* Main content */}

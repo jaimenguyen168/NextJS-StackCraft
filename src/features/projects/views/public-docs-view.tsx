@@ -1,12 +1,11 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MermaidDiagram from "@/components/mermaid-diagram";
 import Link from "next/link";
-import { BookIcon, SunIcon, MoonIcon } from "lucide-react";
+import { FaGithub } from "react-icons/fa";
 import {
   SidebarProvider,
   SidebarInset,
@@ -14,7 +13,15 @@ import {
 } from "@/components/ui/sidebar";
 import { DocsSidebar } from "@/features/projects/components/docs-sidebar";
 import { Button } from "@/components/ui/button";
+import { useProjectBySlug } from "@/trpc/hooks/use-projects";
+import { ThemeToggle } from "@/components/theme-toggle";
+import "@scalar/api-reference-react/style.css";
 import { useTheme } from "next-themes";
+
+const ApiReferenceReact = dynamic(
+  () => import("@scalar/api-reference-react").then((m) => m.ApiReferenceReact),
+  { ssr: false },
+);
 
 interface PublicDocsViewProps {
   username: string;
@@ -27,11 +34,8 @@ export default function PublicDocsView({
   projectSlug,
   activeBlockId,
 }: PublicDocsViewProps) {
-  const trpc = useTRPC();
-  const { data: project } = useSuspenseQuery(
-    trpc.projects.getBySlug.queryOptions({ username, slug: projectSlug }),
-  );
-  const { theme, setTheme } = useTheme();
+  const { project } = useProjectBySlug(username, projectSlug);
+  const { resolvedTheme } = useTheme();
 
   if (!project)
     return (
@@ -70,30 +74,25 @@ export default function PublicDocsView({
         baseUrl={baseUrl}
       />
       <SidebarInset className="min-h-0 min-w-0 relative overflow-hidden">
-        <header className="absolute top-0 inset-x-0 z-10 border-b px-4 py-2.5 flex items-center justify-between bg-background">
+        <header className="absolute top-0 inset-x-0 z-50 border-b px-4 py-2.5 flex items-center justify-between bg-background">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="lg:hidden" />
             <span className="text-muted-foreground/40 text-sm">·</span>
             <span className="text-sm font-semibold">Documentation</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-              <Link href="https://github.com" target="_blank">
-                <BookIcon className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? (
-                <SunIcon className="size-4" />
-              ) : (
-                <MoonIcon className="size-4" />
-              )}
-            </Button>
+            {project.githubUrl && (
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                <Link
+                  href={project.githubUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FaGithub className="size-4" />
+                </Link>
+              </Button>
+            )}
+            <ThemeToggle variant="ghost" />
           </div>
         </header>
 
@@ -104,7 +103,11 @@ export default function PublicDocsView({
                 <h1 className="text-2xl font-bold pb-4">
                   {currentBlock.title}
                 </h1>
-                {currentBlock.kind === "DIAGRAM" ? (
+                {currentBlock.type === "openapi_spec" ? (
+                  <ApiReferenceReact
+                    configuration={{ content: currentBlock.content }}
+                  />
+                ) : currentBlock.kind === "DIAGRAM" ? (
                   <div className="space-y-4">
                     <MermaidDiagram content={currentBlock.content} />
                     {currentBlock.body && (

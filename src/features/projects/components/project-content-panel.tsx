@@ -1,15 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SparklesIcon } from "lucide-react";
 import MermaidDiagram from "@/components/mermaid-diagram";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { useProject } from "@/trpc/hooks/use-projects";
+import "@scalar/api-reference-react/style.css";
+import { cn } from "@/lib/utils";
+
+const ApiReferenceReact = dynamic(
+  () => import("@scalar/api-reference-react").then((m) => m.ApiReferenceReact),
+  { ssr: false },
+);
 
 interface ContentBlock {
   id: string;
   kind: string;
+  type?: string;
   title: string;
   content: string;
   body?: string | null;
@@ -31,14 +40,19 @@ interface Section {
 }
 
 function Block({ block }: { block: ContentBlock }) {
-  return (
-    <div
-      key={block.id}
-      id={`block-${block.id}`}
-      className="space-y-3 scroll-mt-4"
-    >
-      <h2 className="text-base font-semibold border-b pb-2">{block.title}</h2>
-      {block.kind === "DIAGRAM" ? (
+  const renderContent = () => {
+    if (block.type === "openapi_spec") {
+      return (
+        <ApiReferenceReact
+          configuration={{
+            content: block.content,
+          }}
+        />
+      );
+    }
+
+    if (block.kind === "DIAGRAM") {
+      return (
         <div className="space-y-3">
           <MermaidDiagram content={block.content} />
           {block.body && (
@@ -49,13 +63,22 @@ function Block({ block }: { block: ContentBlock }) {
             </div>
           )}
         </div>
-      ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {block.content}
-          </ReactMarkdown>
-        </div>
-      )}
+      );
+    }
+
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {block.content}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
+  return (
+    <div id={`block-${block.id}`} className="space-y-3 scroll-mt-4">
+      <h2 className="text-base font-semibold border-b pb-2">{block.title}</h2>
+      {renderContent()}
     </div>
   );
 }
@@ -108,7 +131,7 @@ export default function ProjectContentPanel() {
   if (!displayProject) return null;
 
   const sections = displayProject.sections ?? [];
-  const ungroupedBlocks = displayProject.contentBlocks.filter(
+  const ungroupedBlocks = (displayProject.contentBlocks ?? []).filter(
     (b) => !b.sectionId,
   );
 
@@ -116,10 +139,22 @@ export default function ProjectContentPanel() {
     <div className="absolute inset-0 overflow-y-auto">
       {/* Cover */}
       <div
-        className="relative flex h-48 w-full items-center justify-center shrink-0"
-        style={{
-          backgroundColor: displayProject.mainColor ?? "hsl(var(--primary))",
-        }}
+        className={cn(
+          "relative flex h-48 w-full items-center justify-center shrink-0",
+          !displayProject.mainColorLight &&
+            !displayProject.mainColorDark &&
+            "bg-background",
+        )}
+        style={
+          displayProject.mainColorLight || displayProject.mainColorDark
+            ? {
+                backgroundColor:
+                  displayProject.mainColorLight ??
+                  displayProject.mainColorDark ??
+                  undefined,
+              }
+            : undefined
+        }
       >
         <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
           {displayProject.name}
@@ -144,6 +179,20 @@ export default function ProjectContentPanel() {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {displayProject.mainContent}
             </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Tags */}
+        {(displayProject as any).tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {((displayProject as any).tags as string[]).map((tag) => (
+              <span
+                key={tag}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         )}
 

@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useTRPC } from "@/trpc/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDeleteProject } from "@/trpc/hooks/use-projects";
 import { toast } from "sonner";
 
 interface ProjectDeleteDialogProps {
@@ -19,6 +18,7 @@ interface ProjectDeleteDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  onSuccess?: () => void;
 }
 
 export function ProjectDeleteDialog({
@@ -26,25 +26,28 @@ export function ProjectDeleteDialog({
   onOpenChange,
   projectId,
   projectName,
+  onSuccess,
 }: ProjectDeleteDialogProps) {
   const [value, setValue] = useState("");
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-
-  const deleteProject = useMutation(
-    trpc.projects.delete.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
-        toast.success("Project deleted");
-        onOpenChange(false);
-      },
-      onError: () => toast.error("Failed to delete project"),
-    }),
-  );
+  const deleteProject = useDeleteProject();
 
   const handleOpenChange = (open: boolean) => {
     if (!open) setValue("");
     onOpenChange(open);
+  };
+
+  const handleDelete = () => {
+    deleteProject.mutate(
+      { id: projectId },
+      {
+        onSuccess: () => {
+          toast.success("Project deleted");
+          handleOpenChange(false);
+          onSuccess?.(); // ← call it
+        },
+        onError: () => toast.error("Failed to delete project"),
+      },
+    );
   };
 
   return (
@@ -64,9 +67,7 @@ export function ProjectDeleteDialog({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && value === projectName) {
-                deleteProject.mutate({ id: projectId });
-              }
+              if (e.key === "Enter" && value === projectName) handleDelete();
             }}
           />
         </div>
@@ -77,7 +78,7 @@ export function ProjectDeleteDialog({
           <Button
             variant="destructive"
             disabled={value !== projectName || deleteProject.isPending}
-            onClick={() => deleteProject.mutate({ id: projectId })}
+            onClick={handleDelete}
           >
             {deleteProject.isPending ? "Deleting..." : "Delete project"}
           </Button>

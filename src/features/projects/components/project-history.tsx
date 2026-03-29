@@ -1,7 +1,5 @@
 "use client";
 
-import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { SparklesIcon, UserIcon, RotateCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,7 +8,7 @@ import {
   useProjectSnapshot,
   type ProjectState,
 } from "@/features/projects/contexts/project-snapshot-context";
-import { useRestoreProject } from "@/trpc/hooks/use-projects";
+import { useGetChat, useRestoreProject } from "@/trpc/hooks/use-projects";
 import { toast } from "sonner";
 
 interface Snapshot {
@@ -20,10 +18,7 @@ interface Snapshot {
 }
 
 export const ProjectHistory = ({ projectId }: { projectId: string }) => {
-  const trpc = useTRPC();
-  const { data: messages } = useSuspenseQuery(
-    trpc.projects.getChat.queryOptions({ projectId }),
-  );
+  const { data: messages } = useGetChat(projectId);
   const { snapshot: activeSnapshot, setSnapshot } = useProjectSnapshot();
   const restore = useRestoreProject(projectId);
 
