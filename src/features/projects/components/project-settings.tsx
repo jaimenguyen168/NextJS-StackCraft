@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   XIcon,
   PlusIcon,
@@ -14,6 +14,7 @@ import {
   ExternalLinkIcon,
   CopyIcon,
   CheckIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
   useProject,
 } from "@/trpc/hooks/use-projects";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
+import Link from "next/link";
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
@@ -65,31 +67,37 @@ function SettingsSection({
 function GithubUrlField({ value }: { value?: string | null }) {
   const { projectId } = useProjectSnapshot();
   const [draft, setDraft] = useState(value ?? "");
-  const [dirty, setDirty] = useState(false);
   const update = useUpdateProjectGithubUrl(projectId);
 
+  const isDirty = draft !== (value ?? "");
+
   const commit = () => {
-    if (!dirty) return;
     update.mutate({ id: projectId, githubUrl: draft || null });
-    setDirty(false);
   };
 
   return (
     <div className="flex items-center gap-1.5">
       <Input
         value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setDirty(true);
-        }}
-        onBlur={commit}
+        onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
         }}
         className="text-[13px] h-8 bg-muted/40 border-border/60 focus-visible:ring-0"
         placeholder="https://github.com/user/repo"
       />
-      {draft && (
+      {isDirty && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 w-8 p-0 shrink-0"
+          onClick={commit}
+          disabled={update.isPending}
+        >
+          <CheckIcon className="size-3.5" />
+        </Button>
+      )}
+      {!isDirty && draft && (
         <a
           href={draft}
           target="_blank"
@@ -109,13 +117,12 @@ function ImageUrlField({ value }: { value?: string | null }) {
   const { projectId } = useProjectSnapshot();
   const [tab, setTab] = useState<"url" | "upload">("url");
   const [draft, setDraft] = useState(value ?? "");
-  const [dirty, setDirty] = useState(false);
   const update = useUpdateProjectImageUrl(projectId);
 
+  const isDirty = draft !== (value ?? "");
+
   const commit = () => {
-    if (!dirty) return;
     update.mutate({ id: projectId, imageUrl: draft || null });
-    setDirty(false);
   };
 
   return (
@@ -138,18 +145,25 @@ function ImageUrlField({ value }: { value?: string | null }) {
         <div className="flex items-center gap-1.5">
           <Input
             value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setDirty(true);
-            }}
-            onBlur={commit}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") commit();
             }}
             className="text-[13px] h-8 bg-muted/40 border-border/60 focus-visible:ring-0"
             placeholder="https://..."
           />
-          {draft && (
+          {isDirty && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={commit}
+              disabled={update.isPending}
+            >
+              <CheckIcon className="size-3.5" />
+            </Button>
+          )}
+          {!isDirty && draft && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={draft}
@@ -161,12 +175,51 @@ function ImageUrlField({ value }: { value?: string | null }) {
         </div>
       </TabsContent>
       <TabsContent value="upload" className="mt-1.5">
-        <div className="flex items-center justify-center h-16 border border-dashed border-border/60 rounded-md bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors">
-          <div className="flex flex-col items-center gap-1 text-muted-foreground">
-            <UploadIcon className="size-4" />
-            <span className="text-[11px]">Upload coming soon</span>
-          </div>
-        </div>
+        <label className="flex items-center justify-center h-16 border border-dashed border-border/60 rounded-md bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors">
+          {update.isPending ? (
+            <div className="flex flex-col items-center gap-1 text-muted-foreground">
+              <Loader2Icon className="size-4 animate-spin" />
+              <span className="text-[11px]">Uploading...</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1 text-muted-foreground">
+              <UploadIcon className="size-4" />
+              <span className="text-[11px]">Click to upload</span>
+            </div>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={update.isPending}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+
+              const { uploadUrl, publicUrl } = await fetch(
+                "/api/projects/image-upload",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    filename: file.name,
+                    contentType: file.type,
+                  }),
+                },
+              ).then((r) => r.json());
+
+              await fetch(uploadUrl, {
+                method: "PUT",
+                body: file,
+                headers: { "Content-Type": file.type },
+              });
+
+              update.mutate({ id: projectId, imageUrl: publicUrl });
+              setDraft(publicUrl);
+              setTab("url");
+            }}
+          />
+        </label>
       </TabsContent>
     </Tabs>
   );
@@ -275,14 +328,14 @@ function ProjectLinksField({
               className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-muted/40 group"
             >
               <LinkIcon className="size-3 text-muted-foreground/60 shrink-0" />
-              <a
+              <Link
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[13px] text-foreground flex-1 truncate hover:underline"
               >
                 {link.label}
-              </a>
+              </Link>
               <button
                 onClick={() => deleteLink.mutate({ id: link.id })}
                 className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:text-destructive"
@@ -475,14 +528,14 @@ function PublishedToggle({
       </div>
       {published && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-muted/20 border border-border/40">
-          <a
+          <Link
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-[12px] text-primary hover:underline truncate flex-1"
           >
             {publicUrl}
-          </a>
+          </Link>
           <button
             onClick={handleCopy}
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
@@ -494,14 +547,14 @@ function PublishedToggle({
               <CopyIcon className="size-3.5" />
             )}
           </button>
-          <a
+          <Link
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ExternalLinkIcon className="size-3.5" />
-          </a>
+          </Link>
         </div>
       )}
     </div>
