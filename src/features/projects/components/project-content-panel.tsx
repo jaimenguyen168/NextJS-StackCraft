@@ -8,6 +8,7 @@ import MermaidDiagram from "@/components/mermaid-diagram";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { useProject } from "@/trpc/hooks/use-projects";
 import "@scalar/api-reference-react/style.css";
+import { cn } from "@/lib/utils";
 
 const ApiReferenceReact = dynamic(
   () => import("@scalar/api-reference-react").then((m) => m.ApiReferenceReact),
@@ -138,10 +139,22 @@ export default function ProjectContentPanel() {
     <div className="absolute inset-0 overflow-y-auto">
       {/* Cover */}
       <div
-        className="relative flex h-48 w-full items-center justify-center shrink-0"
-        style={{
-          backgroundColor: displayProject.mainColor ?? "hsl(var(--primary))",
-        }}
+        className={cn(
+          "relative flex h-48 w-full items-center justify-center shrink-0",
+          !displayProject.mainColorLight &&
+            !displayProject.mainColorDark &&
+            "bg-background",
+        )}
+        style={
+          displayProject.mainColorLight || displayProject.mainColorDark
+            ? {
+                backgroundColor:
+                  displayProject.mainColorLight ??
+                  displayProject.mainColorDark ??
+                  undefined,
+              }
+            : undefined
+        }
       >
         <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
           {displayProject.name}
@@ -166,6 +179,20 @@ export default function ProjectContentPanel() {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {displayProject.mainContent}
             </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Tags */}
+        {(displayProject as any).tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {((displayProject as any).tags as string[]).map((tag) => (
+              <span
+                key={tag}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         )}
 

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const uploadUrl = await getPresignedImageUploadUrl(key, contentType);
     const publicUrl = getPublicImageUrl(key);
 
-    return NextResponse.json({ uploadUrl, publicUrl });
+    return NextResponse.json({ uploadUrl, publicUrl, key });
   } catch (error) {
     console.error("Image upload error:", error);
     return NextResponse.json(

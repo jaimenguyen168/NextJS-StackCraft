@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MermaidDiagram from "@/components/mermaid-diagram";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useProjectBySlug } from "@/trpc/hooks/use-projects";
+import { useTheme } from "next-themes";
 
 interface PublicProjectViewProps {
   username: string;
@@ -22,6 +24,15 @@ export default function PublicProjectView({
   projectSlug,
 }: PublicProjectViewProps) {
   const { project } = useProjectBySlug(username, projectSlug);
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const coverColor =
+    resolvedTheme === "dark"
+      ? (project?.mainColorDark ?? project?.mainColorLight)
+      : project?.mainColorLight;
 
   if (!project)
     return (
@@ -60,16 +71,16 @@ export default function PublicProjectView({
 
       {/* Cover */}
       <div
-        className="relative flex h-56 w-full items-center justify-center"
-        style={{
-          backgroundColor: project.mainColor ?? "oklch(0.6487 0.1538 150.3071)",
-        }}
+        className="relative flex h-56 w-full items-center justify-center bg-background"
+        style={
+          mounted && coverColor ? { backgroundColor: coverColor } : undefined
+        }
       >
         <div className="flex items-center gap-4 px-6">
-          {project.imageUrl && (
-            <div className="size-14 rounded-xl overflow-hidden border-2 border-white/20 shrink-0">
+          {project.logoUrl && (
+            <div className="size-14 overflow-hidden shrink-0">
               <Image
-                src={project.imageUrl}
+                src={project.logoUrl}
                 alt={project.name}
                 width={56}
                 height={56}
@@ -93,6 +104,21 @@ export default function PublicProjectView({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {project.mainContent}
             </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Tags */}
+        {mounted && project.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {project.tags.map((tag) => (
+              <Link
+                key={tag}
+                href={`/explore?tag=${encodeURIComponent(tag)}`}
+                className="text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
+              >
+                #{tag}
+              </Link>
+            ))}
           </div>
         )}
 

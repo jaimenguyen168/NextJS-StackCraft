@@ -117,17 +117,43 @@ export function useUpdateProjectGithubUrl(projectId: string) {
   );
 }
 
-export function useUpdateProjectImageUrl(projectId: string) {
+export function useUpdateProjectLogoUrl(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return useMutation(
-    trpc.projects.updateImageUrl.mutationOptions({
+    trpc.projects.updateLogoUrl.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(
           trpc.projects.getById.queryOptions({ id: projectId }),
         );
         queryClient.invalidateQueries(trpc.projects.getAll.queryOptions());
       },
+    }),
+  );
+}
+
+export function useAddProjectImage(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.addProjectImage.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
+    }),
+  );
+}
+
+export function useDeleteProjectImage(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.deleteProjectImage.mutationOptions({
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        ),
     }),
   );
 }

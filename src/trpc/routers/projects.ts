@@ -3,6 +3,7 @@ import { createTRPCRouter, authProcedure, publicProcedure } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { slugify } from "@/lib/utils";
+import { deleteImage } from "@/lib/r2";
 
 export async function getProjectSnapshot(projectId: string) {
   const project = await prisma.project.findFirst({
@@ -18,15 +19,13 @@ export async function getProjectSnapshot(projectId: string) {
   });
 
   return {
-    // Identity
     name: project?.name ?? "",
     description: project?.description ?? "",
-    // Visual / cover
-    mainColor: project?.mainColor ?? null,
+    mainColorLight: project?.mainColorLight ?? null,
+    mainColorDark: project?.mainColorDark ?? null,
     mainContent: project?.mainContent ?? null,
-    imageUrl: project?.imageUrl ?? null,
+    logoUrl: project?.logoUrl ?? null,
     githubUrl: project?.githubUrl ?? null,
-    // Content
     contentBlocks:
       project?.contentBlocks.map((b) => ({
         id: b.id,
@@ -60,13 +59,13 @@ async function getOrCreateChat(projectId: string) {
   return chat;
 }
 
-// Zod schema for a full snapshot — shared between restore input and internal use
 const snapshotSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
-  mainColor: z.string().nullable().optional(),
+  mainColorLight: z.string().nullable().optional(),
+  mainColorDark: z.string().nullable().optional(),
   mainContent: z.string().nullable().optional(),
-  imageUrl: z.string().nullable().optional(),
+  logoUrl: z.string().nullable().optional(),
   githubUrl: z.string().nullable().optional(),
   contentBlocks: z.array(
     z.object({
@@ -177,6 +176,7 @@ export const projectsRouter = createTRPCRouter({
             include: { user: true },
             orderBy: { createdAt: "asc" },
           },
+          images: { orderBy: { order: "asc" } },
         },
       });
     }),
@@ -200,6 +200,7 @@ export const projectsRouter = createTRPCRouter({
             include: { user: true },
             orderBy: { createdAt: "asc" },
           },
+          images: { orderBy: { order: "asc" } },
         },
       });
     }),
@@ -239,22 +240,44 @@ export const projectsRouter = createTRPCRouter({
     }),
 
   updateColor: authProcedure
-    .input(z.object({ id: z.string(), mainColor: z.string() }))
+    .input(
+      z.object({
+        id: z.string(),
+        mainColorLight: z.string().nullable(),
+        mainColorDark: z.string().nullable(),
+      }),
+    )
     .mutation(({ ctx, input }) =>
       prisma.project.update({
         where: { id: input.id, userId: ctx.userId },
-        data: { mainColor: input.mainColor },
+        data: {
+          mainColorLight: input.mainColorLight,
+          mainColorDark: input.mainColorDark,
+        },
       }),
     ),
 
   updateMainContent: authProcedure
     .input(z.object({ id: z.string(), mainContent: z.string() }))
-    .mutation(({ ctx, input }) =>
-      prisma.project.update({
+    .mutation(async ({ ctx, input }) => {
+      const updated = await prisma.project.update({
         where: { id: input.id, userId: ctx.userId },
         data: { mainContent: input.mainContent },
-      }),
-    ),
+      });
+
+      const chat = await getOrCreateChat(input.id);
+      const projectState = await getProjectSnapshot(input.id);
+      await prisma.chatMessage.create({
+        data: {
+          chatId: chat.id,
+          role: "USER",
+          content: "Manually edited main content",
+          snapshot: { projectState },
+        },
+      });
+
+      return updated;
+    }),
 
   updateGithubUrl: authProcedure
     .input(z.object({ id: z.string(), githubUrl: z.string().nullable() }))
@@ -265,12 +288,12 @@ export const projectsRouter = createTRPCRouter({
       }),
     ),
 
-  updateImageUrl: authProcedure
-    .input(z.object({ id: z.string(), imageUrl: z.string().nullable() }))
+  updateLogoUrl: authProcedure
+    .input(z.object({ id: z.string(), logoUrl: z.string().nullable() }))
     .mutation(({ ctx, input }) =>
       prisma.project.update({
         where: { id: input.id, userId: ctx.userId },
-        data: { imageUrl: input.imageUrl },
+        data: { logoUrl: input.logoUrl },
       }),
     ),
 
@@ -366,6 +389,51 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
+  // ─── Project Images ───────────────────────────────────────────────────────
+
+  addProjectImage: authProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        url: z.string(),
+        key: z.string(),
+        caption: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await prisma.project.findFirst({
+        where: { id: input.projectId, userId: ctx.userId },
+        include: { images: true },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      const maxOrder = Math.max(0, ...project.images.map((i) => i.order));
+      return prisma.projectImage.create({
+        data: {
+          projectId: input.projectId,
+          url: input.url,
+          key: input.key,
+          caption: input.caption,
+          order: maxOrder + 1,
+        },
+      });
+    }),
+
+  deleteProjectImage: authProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const image = await prisma.projectImage.findFirst({
+        where: { id: input.id, project: { userId: ctx.userId } },
+      });
+      if (!image) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Delete from R2
+      await deleteImage(image.key);
+
+      return prisma.projectImage.delete({ where: { id: input.id } });
+    }),
+
+  // ─── Blocks ───────────────────────────────────────────────────────────────
+
   updateBlock: authProcedure
     .input(
       z.object({
@@ -422,6 +490,8 @@ export const projectsRouter = createTRPCRouter({
 
       return { id: input.id };
     }),
+
+  // ─── Sections ─────────────────────────────────────────────────────────────
 
   createSection: authProcedure
     .input(
@@ -514,6 +584,8 @@ export const projectsRouter = createTRPCRouter({
       return updated;
     }),
 
+  // ─── Restore ──────────────────────────────────────────────────────────────
+
   restore: authProcedure
     .input(
       z.object({
@@ -530,7 +602,6 @@ export const projectsRouter = createTRPCRouter({
 
       const snap = input.snapshot;
 
-      // Restore project-level fields
       await prisma.project.update({
         where: { id: input.projectId },
         data: {
@@ -538,11 +609,16 @@ export const projectsRouter = createTRPCRouter({
           ...(snap.description !== undefined && {
             description: snap.description,
           }),
-          ...(snap.mainColor !== undefined && { mainColor: snap.mainColor }),
+          ...(snap.mainColorLight !== undefined && {
+            mainColorLight: snap.mainColorLight,
+          }),
+          ...(snap.mainColorDark !== undefined && {
+            mainColorDark: snap.mainColorDark,
+          }),
           ...(snap.mainContent !== undefined && {
             mainContent: snap.mainContent,
           }),
-          ...(snap.imageUrl !== undefined && { imageUrl: snap.imageUrl }),
+          ...(snap.logoUrl !== undefined && { logoUrl: snap.logoUrl }),
           ...(snap.githubUrl !== undefined && { githubUrl: snap.githubUrl }),
         },
       });
@@ -558,7 +634,6 @@ export const projectsRouter = createTRPCRouter({
       const snapshotSectionIds = new Set(allSnapshotSections.map((s) => s.id));
       const currentSectionIds = new Set(project.sections.map((s) => s.id));
 
-      // Restore sections first (blocks reference them)
       await Promise.all([
         ...project.sections
           .filter((s) => !snapshotSectionIds.has(s.id))
@@ -588,7 +663,6 @@ export const projectsRouter = createTRPCRouter({
           ),
       ]);
 
-      // Restore blocks
       await Promise.all([
         ...project.contentBlocks
           .filter((b) => !snapshotBlockIds.has(b.id))
@@ -641,6 +715,8 @@ export const projectsRouter = createTRPCRouter({
 
       return { ok: true };
     }),
+
+  // ─── Chat ─────────────────────────────────────────────────────────────────
 
   getChat: authProcedure
     .input(z.object({ projectId: z.string() }))

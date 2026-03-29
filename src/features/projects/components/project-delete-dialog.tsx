@@ -18,6 +18,7 @@ interface ProjectDeleteDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  onSuccess?: () => void;
 }
 
 export function ProjectDeleteDialog({
@@ -25,6 +26,7 @@ export function ProjectDeleteDialog({
   onOpenChange,
   projectId,
   projectName,
+  onSuccess,
 }: ProjectDeleteDialogProps) {
   const [value, setValue] = useState("");
   const deleteProject = useDeleteProject();
@@ -41,6 +43,7 @@ export function ProjectDeleteDialog({
         onSuccess: () => {
           toast.success("Project deleted");
           handleOpenChange(false);
+          onSuccess?.(); // ← call it
         },
         onError: () => toast.error("Failed to delete project"),
       },

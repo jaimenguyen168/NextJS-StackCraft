@@ -95,15 +95,13 @@ async function bootstrapProject(
   // Upsert the owner as a collaborator
   await prisma.projectCollaborator.upsert({
     where: { projectId_userId: { projectId, userId } },
-    create: { projectId, userId, role: "OWNER" },
-    update: { role: "OWNER" },
+    create: { projectId, userId, role: "OWNER", status: "ACCEPTED" },
+    update: { role: "OWNER", status: "ACCEPTED" },
   });
 
-  // Stamp the project identity fields
   await prisma.project.update({
     where: { id: projectId },
     data: {
-      mainColor: PRIMARY_COLOR,
       mainContent,
       tags,
     },

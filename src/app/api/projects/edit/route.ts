@@ -14,6 +14,7 @@ type IntentEdit = {
   id: string;
   kind: "DOCUMENT" | "DIAGRAM";
   instruction: string;
+  editBody?: boolean;
 };
 
 type IntentCreate = {
@@ -22,6 +23,7 @@ type IntentCreate = {
   type: string;
   instruction: string;
   body?: boolean;
+  sectionId?: string | null;
 };
 
 type IntentCreateSection = {
@@ -166,7 +168,7 @@ STRICT RULES:
       .trim();
 
     try {
-      JSON.parse(cleaned); // validate it's parseable
+      JSON.parse(cleaned);
       return cleaned;
     } catch {
       lastJson = cleaned;
@@ -219,10 +221,13 @@ export async function POST(request: Request) {
     const lastSnapshot = lastMessage?.snapshot ?? null;
 
     const blockList = project.contentBlocks
-      .map(
-        (b) =>
-          `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id}, type: ${b.type})`,
-      )
+      .map((b) => {
+        const base = `${b.kind === "DIAGRAM" ? "Diagram" : "Document"}: "${b.title}" (id: ${b.id}, type: ${b.type})`;
+        if (b.kind === "DIAGRAM") {
+          return `${base} [explanation/body: ${b.body ? "yes" : "no"}]`;
+        }
+        return base;
+      })
       .join("\n");
 
     const sectionList = project.sections
@@ -238,16 +243,16 @@ Respond ONLY with a valid JSON object. No explanation, no markdown fences.
 Format:
 {
   "edits": [
-    { "id": "block_id", "kind": "DOCUMENT" | "DIAGRAM", "instruction": "specific edit instruction" }
+    { "id": "block_id", "kind": "DOCUMENT" | "DIAGRAM", "instruction": "specific edit instruction", "editBody": false }
   ],
   "creates": [
-    { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": false }
+    { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true, "sectionId": "existing_section_id_or_null" }
   ],
   "createSections": [
     {
       "title": "Section Title",
       "blocks": [
-        { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true }
+        { "kind": "DOCUMENT" | "DIAGRAM", "title": "Block Title", "type": "snake_case_type", "instruction": "what to generate", "body": true, "sectionId": null }
       ]
     }
   ],
@@ -257,11 +262,13 @@ Format:
 }
 
 Rules:
-- Use "createSections" when the user asks to "add a section", "create a ... section", or asks for grouped content
-- Each section can contain multiple blocks
-- Set "body": true on DIAGRAM blocks when the user asks for an explanation or commentary
-- Use "creates" only for loose standalone blocks not inside a section
-- Use "edits" when the user references an existing block by name for changes
+- Always set "body": true on DIAGRAM blocks — every diagram must have a prose explanation generated alongside it
+- Set "editBody": true when the user asks to edit, update, or add an explanation/description/body to an existing diagram
+- Match section and block names LOOSELY — partial or approximate names should match:
+  e.g. "require specs" → "Requirements Specification", "arch" → "Architecture", "block diagram" → find the block named "Block Diagram"
+- If the user asks to add a block "under", "inside", "in", or "to" an existing section, use "creates" with the matched section's id in "sectionId" — do NOT create a new section
+- Use "createSections" ONLY when the user explicitly asks to create a brand new section that does not exist yet
+- Use "edits" when the user references an existing block by full or partial name for changes
 - Use "deletes" when the user says "remove", "delete", or "get rid of"
 - Never create a block or section with a title that already exists
 - All arrays can be empty if nothing matches
@@ -271,11 +278,13 @@ Rules:
 - For openapi_spec: always use kind "DOCUMENT" — the content will be raw JSON, not Markdown`,
       prompt: `User request: "${prompt}"
 
-Existing sections:
+Existing sections (match loosely by name, use the id when referencing):
 ${sectionList || "None"}
 
-Existing blocks:
+Existing blocks (match loosely by name, use the id when referencing):
 ${blockList || "None"}
+
+IMPORTANT: If the user says to add something "under", "to", or "inside" an existing section, put it in "creates" with the sectionId set to that section's id. Only use "createSections" for brand new sections.
 
 Return the JSON object.`,
     });
@@ -392,9 +401,15 @@ Edit instruction: ${target.instruction}
 
 Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
           );
+
+          let newBody = block.body ?? null;
+          if (block.body || target.editBody) {
+            newBody = await generateDiagramBody(block.title, newContent);
+          }
+
           await prisma.contentBlock.update({
             where: { id: block.id },
-            data: { content: newContent },
+            data: { content: newContent, body: newBody },
           });
         }
         edited.push({ id: block.id, title: block.title });
@@ -404,7 +419,7 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
       ...parsed.creates.map(async (item, i) => {
         const content = await generateBlockContent(item, project.description);
         let body: string | null = null;
-        if (item.kind === "DIAGRAM" && item.body) {
+        if (item.kind === "DIAGRAM") {
           body = await generateDiagramBody(item.title, content);
         }
         const newBlock = await prisma.contentBlock.create({
@@ -416,6 +431,7 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
             content: content.trim(),
             body,
             order: maxBlockOrder + 1 + i,
+            sectionId: item.sectionId ?? null,
           },
         });
         created.push({ id: newBlock.id, title: newBlock.title });
@@ -437,7 +453,7 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
             project.description,
           );
           let body: string | null = null;
-          if (blockItem.kind === "DIAGRAM" && blockItem.body) {
+          if (blockItem.kind === "DIAGRAM") {
             body = await generateDiagramBody(blockItem.title, content);
           }
           await prisma.contentBlock.create({
@@ -507,7 +523,6 @@ async function generateBlockContent(
   item: IntentCreate,
   projectDescription: string,
 ): Promise<string> {
-  // OpenAPI spec — generate JSON not Markdown
   if (item.type === "openapi_spec") {
     return generateOpenApiSpec(item.instruction, projectDescription);
   }
