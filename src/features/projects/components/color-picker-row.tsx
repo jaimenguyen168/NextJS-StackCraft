@@ -65,7 +65,7 @@ export function ColorPickerRow({
           </div>
         </button>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-52 p-3 space-y-3">
+      <PopoverContent side="top" align="start" className="w-52 p-3 space-y-3">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground/50">
           {isDark ? "Dark cover color" : "Light cover color"}
         </p>

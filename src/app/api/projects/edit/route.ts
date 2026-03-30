@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
+import {
+  model,
+  MERMAID_SYSTEM_PROMPT,
+  generateValidDiagram,
+  generateDiagramBody,
+} from "@/lib/generation";
 import { prisma } from "@/lib/db";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
-
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-const model = groq("llama-3.3-70b-versatile");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,87 +44,6 @@ type ParsedIntent = {
   createSections: IntentCreateSection[];
   deletes: IntentDelete[];
 };
-
-// ─── Mermaid validation ───────────────────────────────────────────────────────
-
-function validateMermaid(code: string): { valid: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  const withoutFrontmatter = code.replace(/^---[\s\S]*?---\n/, "").trim();
-  const validStarts =
-    /^(graph|flowchart|erDiagram|sequenceDiagram|classDiagram|gantt|pie|journey|gitGraph|block-beta)/;
-  if (!validStarts.test(withoutFrontmatter)) {
-    issues.push("Missing or invalid diagram type declaration");
-  }
-
-  if (/\|>\s/.test(code) || /\|>$/.test(code)) {
-    issues.push("Invalid edge label syntax: use -->|label| not -->|label|>");
-  }
-
-  const bareNodeLines = code
-    .split("\n")
-    .filter((line) => /^\s+[A-Za-z0-9_]+\s+[A-Z_]{2,}$/.test(line.trim()));
-  if (bareNodeLines.length > 0) {
-    issues.push(
-      `Bare node labels without brackets: ${bareNodeLines.join(", ")}`,
-    );
-  }
-
-  const openBrackets = (code.match(/\[/g) ?? []).length;
-  const closeBrackets = (code.match(/\]/g) ?? []).length;
-  if (openBrackets !== closeBrackets) {
-    issues.push("Mismatched square brackets");
-  }
-
-  return { valid: issues.length === 0, issues };
-}
-
-async function generateValidDiagram(
-  systemPrompt: string,
-  userPrompt: string,
-  maxRetries = 2,
-): Promise<string> {
-  let lastCode = "";
-  let lastIssues: string[] = [];
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const prompt =
-      attempt === 0
-        ? userPrompt
-        : `The following Mermaid code has syntax errors that must be fixed:
-
-\`\`\`
-${lastCode}
-\`\`\`
-
-Issues found:
-${lastIssues.map((i) => `- ${i}`).join("\n")}
-
-Fix ALL issues and return ONLY the corrected raw Mermaid code. No fences, no explanation.`;
-
-    const { text } = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-    });
-    const cleaned = text
-      .trim()
-      .replace(/```mermaid|```/g, "")
-      .trim();
-    const { valid, issues } = validateMermaid(cleaned);
-
-    if (valid) return cleaned;
-
-    lastCode = cleaned;
-    lastIssues = issues;
-    console.warn(`Mermaid attempt ${attempt + 1} failed:`, issues);
-  }
-
-  console.error(
-    "Could not produce valid Mermaid after retries, using last attempt",
-  );
-  return lastCode;
-}
 
 // ─── OpenAPI spec generation ──────────────────────────────────────────────────
 
@@ -176,9 +97,6 @@ STRICT RULES:
     }
   }
 
-  console.error(
-    "Could not produce valid OpenAPI JSON after retries, using last attempt",
-  );
   return lastJson;
 }
 
@@ -201,11 +119,17 @@ export async function POST(request: Request) {
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, userId },
-      include: { contentBlocks: true, sections: true },
+      include: {
+        contentBlocks: true,
+        sections: true,
+        githubContext: true,
+      },
     });
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+
+    const repoContext = project.githubContext?.context ?? null;
 
     let chat = await prisma.projectChat.findFirst({ where: { projectId } });
     if (!chat) chat = await prisma.projectChat.create({ data: { projectId } });
@@ -371,7 +295,13 @@ Return the JSON object.`,
                 const { text } = await generateText({
                   model,
                   system: `You are a technical writing agent. Apply the edit instruction and return the full updated content in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the updated content.`,
-                  prompt: `Current content of "${block.title}":\n${block.content}\n\nEdit instruction: ${target.instruction}\n\nReturn the full updated content.`,
+                  prompt: `Current content of "${block.title}":
+${block.content}
+
+Edit instruction: ${target.instruction}
+${repoContext ? `\nRepository context for reference:\n${repoContext}` : ""}
+
+Return the full updated content.`,
                 });
                 return text.trim();
               })();
@@ -382,29 +312,25 @@ Return the JSON object.`,
           });
         } else {
           const newContent = await generateValidDiagram(
-            `You are a Mermaid diagram expert. Fix or edit the diagram per the instruction.
-
-STRICT RULES:
-- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
-- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
-- Edge labels: -->|label| NOT -->|label|>
-- Node labels with spaces MUST use brackets: A[My Label] not A My Label
-- Every node ID must be alphanumeric with no spaces
-- Subgraph names must not contain special characters
-- No markdown fences, no explanation, no preamble — raw Mermaid only`,
+            MERMAID_SYSTEM_PROMPT,
             `Current Mermaid diagram "${block.title}":
 \`\`\`
 ${block.content}
 \`\`\`
 
 Edit instruction: ${target.instruction}
+${repoContext ? `\nRepository context for reference:\n${repoContext}` : ""}
 
 Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
           );
 
           let newBody = block.body ?? null;
           if (block.body || target.editBody) {
-            newBody = await generateDiagramBody(block.title, newContent);
+            newBody = await generateDiagramBody(
+              block.title,
+              newContent,
+              repoContext,
+            );
           }
 
           await prisma.contentBlock.update({
@@ -417,10 +343,14 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
 
       // ── Loose creates ───────────────────────────────────────────────────
       ...parsed.creates.map(async (item, i) => {
-        const content = await generateBlockContent(item, project.description);
+        const content = await generateBlockContent(
+          item,
+          project.description,
+          repoContext,
+        );
         let body: string | null = null;
         if (item.kind === "DIAGRAM") {
-          body = await generateDiagramBody(item.title, content);
+          body = await generateDiagramBody(item.title, content, repoContext);
         }
         const newBlock = await prisma.contentBlock.create({
           data: {
@@ -451,10 +381,15 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
           const content = await generateBlockContent(
             blockItem,
             project.description,
+            repoContext,
           );
           let body: string | null = null;
           if (blockItem.kind === "DIAGRAM") {
-            body = await generateDiagramBody(blockItem.title, content);
+            body = await generateDiagramBody(
+              blockItem.title,
+              content,
+              repoContext,
+            );
           }
           await prisma.contentBlock.create({
             data: {
@@ -522,6 +457,7 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
 async function generateBlockContent(
   item: IntentCreate,
   projectDescription: string,
+  repoContext: string | null,
 ): Promise<string> {
   if (item.type === "openapi_spec") {
     return generateOpenApiSpec(item.instruction, projectDescription);
@@ -531,37 +467,21 @@ async function generateBlockContent(
     const { text } = await generateText({
       model,
       system: `You are a technical writing agent. Generate a new document section in properly formatted Markdown. Every heading, paragraph, and list must be separated by a blank line. Return ONLY the content.`,
-      prompt: `Project description: ${projectDescription}\n\nGenerate content for a new section titled "${item.title}".\nInstruction: ${item.instruction}`,
+      prompt: `Project description: ${projectDescription}
+${repoContext ? `\nRepository context (use this to generate accurate content):\n${repoContext}` : ""}
+
+Generate content for a new section titled "${item.title}".
+Instruction: ${item.instruction}`,
     });
     return text.trim();
   } else {
     return generateValidDiagram(
-      `You are a Mermaid diagram expert generating a new diagram.
+      MERMAID_SYSTEM_PROMPT,
+      `Project description: ${projectDescription}
+${repoContext ? `\nRepository context:\n${repoContext}` : ""}
 
-STRICT RULES:
-- Start with the diagram type (graph TD, graph LR, erDiagram, etc.)
-- Frontmatter title block (--- title: ... ---) must come BEFORE the diagram type if included
-- Edge labels: -->|label| NOT -->|label|>
-- Node labels with spaces MUST use brackets: A[My Label] not A My Label
-- Every node ID must be alphanumeric with no spaces
-- Subgraph names must not contain special characters
-- No markdown fences, no explanation, no preamble — raw Mermaid only`,
-      `Project description: ${projectDescription}\n\nGenerate a "${item.title}" Mermaid diagram.\nInstruction: ${item.instruction}`,
+Generate a "${item.title}" Mermaid diagram.
+Instruction: ${item.instruction}`,
     );
   }
-}
-
-async function generateDiagramBody(
-  title: string,
-  diagramContent: string,
-): Promise<string> {
-  const { text } = await generateText({
-    model,
-    system: `You are a senior software architect writing clear technical documentation. Write in flowing prose paragraphs — no headings, no bullet points.`,
-    prompt: `Write a 3–5 paragraph explanation of the following Mermaid diagram titled "${title}". Walk through what the diagram shows, how the components relate, and what it means for the system as a whole.
-
-Diagram:
-${diagramContent}`,
-  });
-  return text.trim();
 }

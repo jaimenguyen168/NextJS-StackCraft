@@ -39,7 +39,7 @@ export default function ProjectSidePanel() {
     <div
       className={cn(
         "hidden min-h-0 flex-col border-l lg:flex shrink-0 transition-all duration-300 ease-in-out",
-        collapsed ? "w-10" : "w-120",
+        collapsed ? "w-10" : "w-150",
       )}
     >
       {collapsed ? (
@@ -90,7 +90,7 @@ export default function ProjectSidePanel() {
             <div
               className="absolute bottom-0 h-px bg-foreground transition-transform duration-300 ease-in-out"
               style={{
-                width: `${100 / TABS.length}%`,
+                width: `${94 / TABS.length}%`,
                 transform: `translateX(${activeIndex * 100}%)`,
               }}
             />

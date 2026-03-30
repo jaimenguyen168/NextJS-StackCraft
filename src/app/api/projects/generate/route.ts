@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
+import { model, ensureMermaidTitle } from "@/lib/generation";
 import { prisma } from "@/lib/db";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
-
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-const model = groq("llama-3.3-70b-versatile");
-
-const PRIMARY_COLOR = "oklch(0.6487 0.1538 150.3071)";
 
 export async function POST(request: Request) {
   try {
@@ -84,7 +79,6 @@ async function bootstrapProject(
   description: string,
   chatId: string,
 ) {
-  // All four LLM calls run in parallel
   const [mainContent, tags, systemOverview, blockDiagram] = await Promise.all([
     generateMainContent(description),
     generateTags(description),
@@ -92,7 +86,6 @@ async function bootstrapProject(
     generateBlockDiagram(description, projectName),
   ]);
 
-  // Upsert the owner as a collaborator
   await prisma.projectCollaborator.upsert({
     where: { projectId_userId: { projectId, userId } },
     create: { projectId, userId, role: "OWNER", status: "ACCEPTED" },
@@ -101,19 +94,11 @@ async function bootstrapProject(
 
   await prisma.project.update({
     where: { id: projectId },
-    data: {
-      mainContent,
-      tags,
-    },
+    data: { mainContent, tags },
   });
 
-  // Scaffold the starter Requirements Specification section
   const section = await prisma.section.create({
-    data: {
-      projectId,
-      title: "Requirements Specification",
-      order: 0,
-    },
+    data: { projectId, title: "Requirements Specification", order: 0 },
   });
 
   await prisma.contentBlock.createMany({
@@ -166,18 +151,6 @@ async function bootstrapProject(
   });
 }
 
-// ─── Mermaid helper ───────────────────────────────────────────────────────────
-
-/**
- * Ensures the Mermaid string opens with a frontmatter title block.
- * If the model already produced one, it's left untouched.
- * Otherwise we inject one from the project name as a fallback.
- */
-function ensureMermaidTitle(mermaid: string, projectName: string): string {
-  if (mermaid.trimStart().startsWith("---")) return mermaid;
-  return `---\ntitle: ${projectName} — Block Diagram\n---\n${mermaid}`;
-}
-
 // ─── LLM helpers ─────────────────────────────────────────────────────────────
 
 async function generateMainContent(description: string): Promise<string> {
@@ -204,7 +177,6 @@ A short bulleted list of the tools, services, frameworks, and infrastructure nee
 
 Project description: ${description}`,
   });
-
   return text.trim();
 }
 
@@ -235,7 +207,6 @@ How will we know the system is successful? List 3–5 measurable outcomes or acc
 
 Project description: ${description}`,
   });
-
   return text.trim();
 }
 
@@ -243,7 +214,6 @@ async function generateBlockDiagram(
   description: string,
   projectName: string,
 ): Promise<{ mermaid: string; body: string }> {
-  // Mermaid code and prose explanation generated in parallel
   const [mermaidResult, bodyResult] = await Promise.all([
     generateText({
       model,
@@ -267,8 +237,7 @@ The diagram MUST represent all of the following layers and their connections:
 - External services: any third-party APIs, storage, email, payment, etc.
 - Infrastructure: hosting or deployment platform
 
-Use short, descriptive node labels. Use subgraphs to visually group related nodes (e.g. subgraph Frontend, subgraph Backend). Show directional arrows with brief edge labels where the relationship needs clarification.
-
+Use short, descriptive node labels. Use subgraphs to visually group related nodes. Show directional arrows with brief edge labels where the relationship needs clarification.
 Only output raw Mermaid — no fences, no explanation.
 
 Project description: ${description}`,
@@ -294,10 +263,8 @@ Project description: ${description}`,
     }),
   ]);
 
-  const mermaid = ensureMermaidTitle(mermaidResult.text.trim(), projectName);
-
   return {
-    mermaid,
+    mermaid: ensureMermaidTitle(mermaidResult.text.trim(), projectName),
     body: bodyResult.text.trim(),
   };
 }
@@ -319,8 +286,6 @@ Project description: ${description}`,
       .trim();
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) return parsed.map(String).slice(0, 8);
-  } catch {
-    // safe default
-  }
+  } catch {}
   return [];
 }

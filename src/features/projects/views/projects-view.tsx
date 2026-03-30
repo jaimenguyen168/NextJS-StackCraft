@@ -1,44 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import PageHeader from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import ProjectCard from "@/features/projects/components/project-card";
-import { useCreateProject, useProjects } from "@/trpc/hooks/use-projects";
+import { useProjects } from "@/trpc/hooks/use-projects";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { createUsername } from "@/lib/utils";
+import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 
 const ProjectsView = () => {
   const router = useRouter();
   const { projects } = useProjects();
-  const createProject = useCreateProject();
-  const { user } = useUser();
-
-  const handleCreate = () => {
-    createProject.mutate({
-      name: "Untitled Project",
-      description: "A new project",
-      username: createUsername(user),
-    });
-  };
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex flex-col flex-1">
       <PageHeader
         title="Projects"
         actions={
-          <Button
-            size="sm"
-            onClick={handleCreate}
-            disabled={createProject.isPending}
-          >
+          <Button size="sm" onClick={() => setOpen(true)}>
             <PlusIcon className="size-4" />
             New Project
           </Button>
         }
       />
+
       <div className="p-4 lg:p-6">
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -47,8 +34,7 @@ const ProjectsView = () => {
               variant="outline"
               size="sm"
               className="mt-4"
-              onClick={handleCreate}
-              disabled={createProject.isPending}
+              onClick={() => setOpen(true)}
             >
               <PlusIcon className="size-4" />
               Create your first project
@@ -66,6 +52,8 @@ const ProjectsView = () => {
           </div>
         )}
       </div>
+
+      <CreateProjectDialog open={open} onOpenChange={setOpen} />
     </div>
   );
 };
