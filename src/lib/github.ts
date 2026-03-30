@@ -15,6 +15,9 @@ export type GitHubRepoData = {
   language: string | null;
   topics: string[];
   stars: number;
+  defaultBranch: string | null;
+  latestCommitSha: string | null;
+  latestCommitMessage: string | null;
   packageJson: Record<string, unknown> | null;
   readme: string | null;
   prismaSchema: string | null;
@@ -288,12 +291,25 @@ export async function fetchGitHubRepo(
     language: string | null;
     topics: string[];
     stargazers_count: number;
+    default_branch: string;
+  };
+
+  type CommitResponse = {
+    sha: string;
+    commit: { message: string };
   };
 
   const [meta, tree] = await Promise.all([
     fetchJson<RepoMeta>(`${GITHUB_API}/repos/${owner}/${repo}`),
     fetchFileTree(owner, repo),
   ]);
+
+  const defaultBranch = meta?.default_branch ?? "main";
+
+  // Fetch latest commit info
+  const latestCommit = await fetchJson<CommitResponse>(
+    `${GITHUB_API}/repos/${owner}/${repo}/commits/${defaultBranch}`,
+  );
 
   // README
   const readmePaths = [
@@ -328,7 +344,7 @@ export async function fetchGitHubRepo(
     }
   }
 
-  // package.json first — needed for framework detection
+  // package.json — needed for framework detection
   const packageJsonRaw = await fetchFile(owner, repo, "package.json");
   let packageJson: Record<string, unknown> | null = null;
   if (packageJsonRaw) {
@@ -377,6 +393,9 @@ export async function fetchGitHubRepo(
     language: meta?.language ?? null,
     topics: meta?.topics ?? [],
     stars: meta?.stargazers_count ?? 0,
+    defaultBranch,
+    latestCommitSha: latestCommit?.sha ?? null,
+    latestCommitMessage: latestCommit?.commit.message.split("\n")[0] ?? null,
     packageJson,
     readme: readme ? readme.slice(0, 2000) : null,
     prismaSchema,

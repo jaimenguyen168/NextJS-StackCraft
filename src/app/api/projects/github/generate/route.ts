@@ -5,9 +5,11 @@ import { createGroq } from "@ai-sdk/groq";
 import { prisma } from "@/lib/db";
 import { fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
+import { registerGitHubWebhook } from "@/lib/github-webhook";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-const model = groq("llama-3.3-70b-versatile");
+const model = groq("meta-llama/llama-4-scout-17b-16e-instruct");
+// const model = groq("llama-3.3-70b-versatile");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -146,10 +148,36 @@ export async function POST(request: Request) {
       data: { status: "GENERATING" },
     });
 
+    // ── 1. Fetch repo data ──────────────────────────────────────────────────
     const repoData = await fetchGitHubRepo(parsed.owner, parsed.repo);
     const context = buildContext(repoData);
 
-    // Sequential LLM calls with sleep between each to avoid TPM rate limit
+    // ── 2. Save GitHub context to DB immediately ────────────────────────────
+    await prisma.projectGithubContext.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        githubUrl,
+        context,
+        commitSha: repoData.latestCommitSha ?? null,
+        commitMessage: repoData.latestCommitMessage ?? null,
+        branch: repoData.defaultBranch ?? null,
+      },
+      update: {
+        githubUrl,
+        context,
+        commitSha: repoData.latestCommitSha ?? null,
+        commitMessage: repoData.latestCommitMessage ?? null,
+        branch: repoData.defaultBranch ?? null,
+      },
+    });
+
+    // ── 3. Register webhook (non-fatal) ────────────────────────────────────
+    registerGitHubWebhook(parsed.owner, parsed.repo).catch((err) =>
+      console.warn("Webhook registration failed (non-fatal):", err),
+    );
+
+    // ── 4. Sequential LLM generation ───────────────────────────────────────
     const description = await generateDescription(repoData, context);
     await sleep(1500);
 
@@ -167,13 +195,14 @@ export async function POST(request: Request) {
       project.name,
     );
 
-    // Upsert owner collaborator
+    // ── 5. Upsert owner collaborator ────────────────────────────────────────
     await prisma.projectCollaborator.upsert({
       where: { projectId_userId: { projectId, userId } },
       create: { projectId, userId, role: "OWNER", status: "ACCEPTED" },
       update: { role: "OWNER", status: "ACCEPTED" },
     });
 
+    // ── 6. Update project ───────────────────────────────────────────────────
     await prisma.project.update({
       where: { id: projectId },
       data: {
@@ -184,7 +213,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Requirements Specification section
+    // ── 7. Create sections + blocks ─────────────────────────────────────────
     const reqSection = await prisma.section.create({
       data: { projectId, title: "Requirements Specification", order: 0 },
     });
@@ -400,7 +429,7 @@ A narrative paragraph (no bullet points) describing what the system must do from
 Describe the high-level approach: what kind of system is this (web app, extension, API, etc.), what major components exist and how they work together, how data flows through the system. You may mention key libraries where they clarify the design, but don't just list imports.
 
 ## Background
-Two paragraphs. First: what is the broader problem space? What existing tools or approaches exist? Second: what limitations do those tools have, and how does this project specifically address those gaps? Be thoughtful — don't just describe config files.
+Two paragraphs. First: what is the broader problem space? What existing tools or approaches exist? Second: what limitations do those tools have, and how does this project specifically address those gaps?
 
 ## Required Resources
 A bulleted list of the tools, services, frameworks, and infrastructure this project depends on.
@@ -428,10 +457,10 @@ What is this system trying to achieve? Who uses it and why? What does it explici
 Bullet list with **bold feature name** followed by a description of what it does for the user. Focus on user-facing capabilities.
 
 ## User Roles
-Who interacts with this system? Describe their roles and what they can do — based on auth patterns or route structures you observe.
+Who interacts with this system? Describe their roles and what they can do.
 
 ## Assumptions & Constraints
-What assumptions is the system built on? What are its known limitations or constraints (technical, business, or platform)?
+What assumptions is the system built on? What are its known limitations or constraints?
 
 ## Success Criteria
 How will we know the system is successful? 3-5 measurable outcomes.
@@ -464,7 +493,7 @@ title: ${projectName} — Architecture
 ---
 graph TD
 
-Use the actual libraries, frameworks, and services you see in the source code — not generic placeholders. Use subgraphs to group related components (Frontend, Backend, Database, Auth, External Services).
+Use the actual libraries, frameworks, and services you see in the source code — not generic placeholders. Use subgraphs to group related components.
 Do NOT include any style lines.
 
 Source code context:
@@ -476,8 +505,8 @@ ${context}`,
   const { text: body } = await generateText({
     model,
     system:
-      "You have read the actual source code. Write in flowing prose paragraphs — no headings, no bullet points. Reference specific files and patterns you observe.",
-    prompt: `Based on the actual source code, write a 3-5 paragraph architectural explanation. Reference real files, libraries, and patterns you see. Explain how the pieces connect and data flows through the system.
+      "You have read the actual source code. Write in flowing prose paragraphs — no headings, no bullet points.",
+    prompt: `Based on the actual source code, write a 3-5 paragraph architectural explanation. Reference real files, libraries, and patterns you see.
 
 Source code context:
 ${context}`,

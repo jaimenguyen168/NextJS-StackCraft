@@ -6,7 +6,8 @@ import { prisma } from "@/lib/db";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-const model = groq("llama-3.3-70b-versatile");
+const model = groq("meta-llama/llama-4-scout-17b-16e-instruct");
+// const model = groq("llama-3.3-70b-versatile");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
