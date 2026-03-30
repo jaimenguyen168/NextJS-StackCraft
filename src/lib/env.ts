@@ -11,6 +11,7 @@ export const env = createEnv({
     R2_SECRET_ACCESS_KEY: z.string().min(1),
     R2_BUCKET_NAME: z.string().min(1),
     R2_PUBLIC_URL: z.string().min(1),
+    GITHUB_TOKEN: z.string().optional(),
   },
   experimental__runtimeEnv: {},
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
