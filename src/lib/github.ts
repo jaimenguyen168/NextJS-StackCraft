@@ -240,10 +240,10 @@ const ROUTE_PATTERNS: RegExp[] = [
   /^server\/api\/.*\.(ts|js)$/,
 ];
 
-const MAX_CHARS = 1500;
-const MAX_SOURCE_FILES = 8;
-const MAX_ROUTE_FILES = 6;
-const MAX_CONFIG_FILES = 3;
+const MAX_CHARS = 3000;
+const MAX_SOURCE_FILES = 12;
+const MAX_ROUTE_FILES = 8;
+const MAX_CONFIG_FILES = 5;
 
 async function fetchMatchingFiles(
   owner: string,
@@ -397,7 +397,7 @@ export async function fetchGitHubRepo(
     latestCommitSha: latestCommit?.sha ?? null,
     latestCommitMessage: latestCommit?.commit.message.split("\n")[0] ?? null,
     packageJson,
-    readme: readme ? readme.slice(0, 2000) : null,
+    readme: readme ? readme.slice(0, 5000) : null,
     prismaSchema,
     envExample,
     dockerCompose,
@@ -407,4 +407,69 @@ export async function fetchGitHubRepo(
     sourceFiles,
     configFiles,
   };
+}
+
+export function buildContext(repo: GitHubRepoData): string {
+  const parts: string[] = [];
+
+  if (repo.packageJson) {
+    const pkg = repo.packageJson as Record<string, unknown>;
+    const deps = Object.keys((pkg.dependencies as object) ?? {});
+    const devDeps = Object.keys((pkg.devDependencies as object) ?? {});
+    parts.push(`## Tech Stack
+Language: ${repo.language ?? "Unknown"}
+Main dependencies: ${deps.join(", ")}
+Dev dependencies: ${devDeps.join(", ")}`);
+  }
+
+  if (repo.readme) {
+    parts.push(`## README\n${repo.readme.slice(0, 2000)}`);
+  }
+
+  if (repo.sourceFiles.length > 0) {
+    parts.push(
+      `## Source Files (${repo.sourceFiles.length} files)\n` +
+        repo.sourceFiles
+          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+          .join("\n\n"),
+    );
+  }
+
+  if (repo.routeFiles.length > 0) {
+    parts.push(
+      `## API / Route Files (${repo.routeFiles.length} files)\n` +
+        repo.routeFiles
+          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+          .join("\n\n"),
+    );
+  }
+
+  if (repo.configFiles.length > 0) {
+    parts.push(
+      `## Config Files\n` +
+        repo.configFiles
+          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+          .join("\n\n"),
+    );
+  }
+
+  if (repo.prismaSchema) {
+    parts.push(
+      `## Database Schema (Prisma)\n${repo.prismaSchema.slice(0, 2000)}`,
+    );
+  }
+
+  if (repo.envExample) {
+    parts.push(`## Environment Variables\n${repo.envExample}`);
+  }
+
+  if (repo.dockerCompose) {
+    parts.push(`## Docker Compose\n${repo.dockerCompose}`);
+  }
+
+  if (repo.fileTree.length > 0) {
+    parts.push(`## File Structure\n${repo.fileTree.slice(0, 100).join("\n")}`);
+  }
+
+  return parts.join("\n\n");
 }

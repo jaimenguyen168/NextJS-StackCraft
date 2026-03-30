@@ -794,7 +794,7 @@ export function ProjectSettings() {
         />
       </SettingsSection>
 
-      <div className="h-32 w-full shrink-0" />
+      <div className="h-8 w-full shrink-0" />
     </div>
   );
 }

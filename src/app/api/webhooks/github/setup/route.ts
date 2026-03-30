@@ -5,11 +5,7 @@ import {
   registerGitHubWebhook,
   removeGitHubWebhook,
 } from "@/lib/github-webhook";
-import { parseGitHubUrl } from "@/lib/github";
-
-// POST /api/webhooks/github/setup
-// Body: { projectId, action: "register" | "remove" }
-// Manually register or remove a webhook for a project's GitHub repo
+import { buildContext, fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
 
 export async function POST(request: Request) {
   try {
@@ -61,6 +57,32 @@ export async function POST(request: Request) {
 
     if (action === "register") {
       await registerGitHubWebhook(parsed.owner, parsed.repo);
+
+      // Fetch and save current repo context
+      try {
+        const repoData = await fetchGitHubRepo(parsed.owner, parsed.repo);
+        const context = buildContext(repoData);
+        await prisma.projectGithubContext.upsert({
+          where: { projectId },
+          create: {
+            projectId,
+            githubUrl: project.githubUrl!,
+            context,
+            commitSha: repoData.latestCommitSha ?? null,
+            commitMessage: repoData.latestCommitMessage ?? null,
+            branch: repoData.defaultBranch ?? null,
+          },
+          update: {
+            context,
+            commitSha: repoData.latestCommitSha ?? null,
+            commitMessage: repoData.latestCommitMessage ?? null,
+            branch: repoData.defaultBranch ?? null,
+          },
+        });
+      } catch (err) {
+        console.warn("Context fetch failed (non-fatal):", err);
+      }
+
       return NextResponse.json({
         ok: true,
         message: `Webhook registered for ${parsed.owner}/${parsed.repo}`,
@@ -80,9 +102,6 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// GET /api/webhooks/github/setup?projectId=xxx
-// Check if a webhook is currently registered for a project's repo
 
 export async function GET(request: Request) {
   try {

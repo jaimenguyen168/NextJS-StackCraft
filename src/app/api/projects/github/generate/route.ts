@@ -1,112 +1,18 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
+import {
+  model,
+  generateValidDiagram,
+  generateDiagramBody,
+  MERMAID_SYSTEM_PROMPT,
+} from "@/lib/generation";
 import { prisma } from "@/lib/db";
-import { fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
+import { buildContext, fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
 import { registerGitHubWebhook } from "@/lib/github-webhook";
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-const model = groq("meta-llama/llama-4-scout-17b-16e-instruct");
-// const model = groq("llama-3.3-70b-versatile");
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// ─── Mermaid validation + retry ───────────────────────────────────────────────
-
-function validateMermaid(code: string): { valid: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  const withoutStyles = code
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("style "))
-    .join("\n");
-
-  const withoutFrontmatter = withoutStyles
-    .replace(/^---[\s\S]*?---\n/, "")
-    .trim();
-
-  if (
-    !/^(graph|flowchart|erDiagram|sequenceDiagram|classDiagram|gantt|pie|journey|gitGraph|block-beta)/.test(
-      withoutFrontmatter,
-    )
-  ) {
-    issues.push("Missing or invalid diagram type declaration");
-  }
-
-  if (/\|>\s/.test(code) || /\|>$/.test(code)) {
-    issues.push("Invalid edge label syntax: use -->|label| not -->|label|>");
-  }
-
-  const bare = code
-    .split("\n")
-    .filter((l) => /^\s+[A-Za-z0-9_]+\s+[A-Z_]{2,}$/.test(l.trim()));
-  if (bare.length > 0) {
-    issues.push(`Bare node labels without brackets: ${bare.join(", ")}`);
-  }
-
-  if ((code.match(/\[/g) ?? []).length !== (code.match(/\]/g) ?? []).length) {
-    issues.push("Mismatched square brackets");
-  }
-
-  return { valid: issues.length === 0, issues };
-}
-
-function stripMermaid(raw: string): string {
-  return raw
-    .trim()
-    .replace(/```mermaid|```/g, "")
-    .trim()
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("style "))
-    .join("\n");
-}
-
-async function generateValidDiagram(
-  systemPrompt: string,
-  userPrompt: string,
-  maxRetries = 2,
-): Promise<string> {
-  let lastCode = "";
-  let lastIssues: string[] = [];
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) await sleep(2000);
-
-    const prompt =
-      attempt === 0
-        ? userPrompt
-        : `The following Mermaid code has syntax errors that must be fixed:
-
-\`\`\`
-${lastCode}
-\`\`\`
-
-Issues:
-${lastIssues.map((i) => `- ${i}`).join("\n")}
-
-Fix ALL issues. Return ONLY corrected raw Mermaid. No fences, no style lines.`;
-
-    const { text } = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-    });
-    const cleaned = stripMermaid(text);
-    const { valid, issues } = validateMermaid(cleaned);
-
-    if (valid) return cleaned;
-
-    lastCode = cleaned;
-    lastIssues = issues;
-    console.warn(`Mermaid attempt ${attempt + 1} failed:`, issues);
-  }
-
-  return lastCode;
-}
-
-// ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   let projectId: string | undefined;
@@ -119,7 +25,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     projectId = body.projectId;
-    const { githubUrl } = body;
+    const { githubUrl, enableWebhook = true } = body;
 
     if (!projectId || !githubUrl) {
       return NextResponse.json(
@@ -148,11 +54,11 @@ export async function POST(request: Request) {
       data: { status: "GENERATING" },
     });
 
-    // ── 1. Fetch repo data ──────────────────────────────────────────────────
+    // ── 1. Fetch repo data ────────────────────────────────────────────────
     const repoData = await fetchGitHubRepo(parsed.owner, parsed.repo);
     const context = buildContext(repoData);
 
-    // ── 2. Save GitHub context to DB immediately ────────────────────────────
+    // ── 2. Save GitHub context to DB ──────────────────────────────────────
     await prisma.projectGithubContext.upsert({
       where: { projectId },
       create: {
@@ -172,12 +78,14 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── 3. Register webhook (non-fatal) ────────────────────────────────────
-    registerGitHubWebhook(parsed.owner, parsed.repo).catch((err) =>
-      console.warn("Webhook registration failed (non-fatal):", err),
-    );
+    // ── 3. Register webhook if enabled (non-fatal) ────────────────────────
+    if (enableWebhook) {
+      registerGitHubWebhook(parsed.owner, parsed.repo).catch((err) =>
+        console.warn("Webhook registration failed (non-fatal):", err),
+      );
+    }
 
-    // ── 4. Sequential LLM generation ───────────────────────────────────────
+    // ── 4. Sequential LLM generation ─────────────────────────────────────
     const description = await generateDescription(repoData, context);
     await sleep(1500);
 
@@ -195,14 +103,14 @@ export async function POST(request: Request) {
       project.name,
     );
 
-    // ── 5. Upsert owner collaborator ────────────────────────────────────────
+    // ── 5. Upsert owner collaborator ──────────────────────────────────────
     await prisma.projectCollaborator.upsert({
       where: { projectId_userId: { projectId, userId } },
       create: { projectId, userId, role: "OWNER", status: "ACCEPTED" },
       update: { role: "OWNER", status: "ACCEPTED" },
     });
 
-    // ── 6. Update project ───────────────────────────────────────────────────
+    // ── 6. Update project ─────────────────────────────────────────────────
     await prisma.project.update({
       where: { id: projectId },
       data: {
@@ -213,7 +121,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── 7. Create sections + blocks ─────────────────────────────────────────
+    // ── 7. Create sections + blocks ───────────────────────────────────────
     const reqSection = await prisma.section.create({
       data: { projectId, title: "Requirements Specification", order: 0 },
     });
@@ -321,75 +229,6 @@ export async function POST(request: Request) {
   }
 }
 
-// ─── Context builder ──────────────────────────────────────────────────────────
-
-function buildContext(
-  repo: Awaited<ReturnType<typeof fetchGitHubRepo>>,
-): string {
-  const parts: string[] = [];
-
-  if (repo.packageJson) {
-    const pkg = repo.packageJson as Record<string, unknown>;
-    const deps = Object.keys((pkg.dependencies as object) ?? {});
-    const devDeps = Object.keys((pkg.devDependencies as object) ?? {});
-    parts.push(`## Tech Stack
-Language: ${repo.language ?? "Unknown"}
-Main dependencies: ${deps.join(", ")}
-Dev dependencies: ${devDeps.join(", ")}`);
-  }
-
-  if (repo.readme) {
-    parts.push(`## README\n${repo.readme.slice(0, 2000)}`);
-  }
-
-  if (repo.sourceFiles.length > 0) {
-    parts.push(
-      `## Source Files (${repo.sourceFiles.length} files)\n` +
-        repo.sourceFiles
-          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-          .join("\n\n"),
-    );
-  }
-
-  if (repo.routeFiles.length > 0) {
-    parts.push(
-      `## API / Route Files (${repo.routeFiles.length} files)\n` +
-        repo.routeFiles
-          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-          .join("\n\n"),
-    );
-  }
-
-  if (repo.configFiles.length > 0) {
-    parts.push(
-      `## Config Files\n` +
-        repo.configFiles
-          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-          .join("\n\n"),
-    );
-  }
-
-  if (repo.prismaSchema) {
-    parts.push(
-      `## Database Schema (Prisma)\n${repo.prismaSchema.slice(0, 2000)}`,
-    );
-  }
-
-  if (repo.envExample) {
-    parts.push(`## Environment Variables\n${repo.envExample}`);
-  }
-
-  if (repo.dockerCompose) {
-    parts.push(`## Docker Compose\n${repo.dockerCompose}`);
-  }
-
-  if (repo.fileTree.length > 0) {
-    parts.push(`## File Structure\n${repo.fileTree.slice(0, 100).join("\n")}`);
-  }
-
-  return parts.join("\n\n");
-}
-
 // ─── LLM helpers ─────────────────────────────────────────────────────────────
 
 async function generateDescription(
@@ -476,15 +315,7 @@ async function generateArchitectureDiagram(
   projectName: string,
 ): Promise<{ mermaid: string; body: string }> {
   const mermaid = await generateValidDiagram(
-    `You are a senior software architect. Output ONLY raw Mermaid code.
-
-STRICT RULES:
-- Start with frontmatter block then graph TD
-- Edge labels: -->|label| NOT -->|label|>
-- Node labels with spaces MUST use brackets: A[My Label]
-- Every node ID must be alphanumeric with no spaces
-- Do NOT include any style lines
-- No fences, no explanation — raw Mermaid only`,
+    MERMAID_SYSTEM_PROMPT,
     `Based on the actual source code, generate a Mermaid architecture diagram showing the real tech stack.
 
 Start with:
@@ -534,17 +365,9 @@ ${prismaSchema}`,
 
   await sleep(1500);
 
-  const { text: body } = await generateText({
-    model,
-    system:
-      "Write in flowing prose paragraphs — no headings, no bullet points.",
-    prompt: `Write a 2-3 paragraph explanation of the database schema for ${projectName} based on this Prisma schema.
+  const body = await generateDiagramBody(projectName, mermaid);
 
-Schema:
-${prismaSchema}`,
-  });
-
-  return { mermaid, body: body.trim() };
+  return { mermaid, body };
 }
 
 async function generateTags(context: string): Promise<string[]> {

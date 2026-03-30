@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
-import { fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
+import { buildContext, fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
 
 // ─── Signature verification ───────────────────────────────────────────────────
 
@@ -22,56 +22,6 @@ function verifySignature(payload: string, signature: string): boolean {
   } catch {
     return false;
   }
-}
-
-// ─── Context builder (same as generate route) ─────────────────────────────────
-
-function buildContext(
-  repo: Awaited<ReturnType<typeof fetchGitHubRepo>>,
-): string {
-  const parts: string[] = [];
-
-  if (repo.packageJson) {
-    const pkg = repo.packageJson as Record<string, unknown>;
-    const deps = Object.keys((pkg.dependencies as object) ?? {});
-    const devDeps = Object.keys((pkg.devDependencies as object) ?? {});
-    parts.push(`## Tech Stack
-Language: ${repo.language ?? "Unknown"}
-Main dependencies: ${deps.join(", ")}
-Dev dependencies: ${devDeps.join(", ")}`);
-  }
-
-  if (repo.readme) parts.push(`## README\n${repo.readme.slice(0, 2000)}`);
-
-  if (repo.sourceFiles.length > 0) {
-    parts.push(
-      `## Source Files\n` +
-        repo.sourceFiles
-          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-          .join("\n\n"),
-    );
-  }
-
-  if (repo.routeFiles.length > 0) {
-    parts.push(
-      `## API / Route Files\n` +
-        repo.routeFiles
-          .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-          .join("\n\n"),
-    );
-  }
-
-  if (repo.prismaSchema) {
-    parts.push(`## Database Schema\n${repo.prismaSchema.slice(0, 2000)}`);
-  }
-
-  if (repo.envExample)
-    parts.push(`## Environment Variables\n${repo.envExample}`);
-  if (repo.fileTree.length > 0) {
-    parts.push(`## File Structure\n${repo.fileTree.slice(0, 100).join("\n")}`);
-  }
-
-  return parts.join("\n\n");
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
