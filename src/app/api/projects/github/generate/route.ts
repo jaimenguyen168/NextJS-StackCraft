@@ -11,6 +11,11 @@ import { prisma } from "@/lib/db";
 import { buildContext, fetchGitHubRepo, parseGitHubUrl } from "@/lib/github";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
 import { registerGitHubWebhook } from "@/lib/github-webhook";
+import { getPlanFromClaims } from "@/features/usage/constants/plans";
+import {
+  checkGithubCredit,
+  consumeGithubCredit,
+} from "@/features/usage/lib/usage";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -18,9 +23,26 @@ export async function POST(request: Request) {
   let projectId: string | undefined;
 
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // ── Credit check ─────────────────────────────────────────────────────────
+    const plan = getPlanFromClaims(has);
+    const creditCheck = await checkGithubCredit(userId, plan);
+    if (!creditCheck.allowed) {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "FAILED" },
+      });
+      return NextResponse.json(
+        {
+          error: `Monthly GitHub import limit reached (${creditCheck.used}/${creditCheck.limit}). Upgrade to continue.`,
+          code: "GITHUB_CREDIT_LIMIT",
+        },
+        { status: 402 },
+      );
     }
 
     const body = await request.json();
@@ -53,6 +75,8 @@ export async function POST(request: Request) {
       where: { id: projectId },
       data: { status: "GENERATING" },
     });
+
+    await consumeGithubCredit(userId);
 
     // ── 1. Fetch repo data ────────────────────────────────────────────────
     const repoData = await fetchGitHubRepo(parsed.owner, parsed.repo);

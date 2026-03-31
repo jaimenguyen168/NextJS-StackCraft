@@ -27,6 +27,7 @@ import {
   HeadphonesIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { UsageContainer } from "@/features/usage/components/usage-container";
 
 interface MenuItem {
   title: string;
@@ -126,6 +127,7 @@ export function DashboardSidebar() {
 
       {/* Footer */}
       <SidebarFooter className="py-3 px-2">
+        <UsageContainer />
         <SidebarMenu>
           <SidebarMenuItem>
             <UserButton

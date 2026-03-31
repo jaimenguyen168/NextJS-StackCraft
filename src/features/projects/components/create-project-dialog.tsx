@@ -23,6 +23,11 @@ import { useCreateProject } from "@/trpc/hooks/use-projects";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createUsername } from "@/lib/utils";
+import {
+  useCheckGithubCredit,
+  useInvalidateUsage,
+} from "@/trpc/hooks/use-usage";
+import { toast } from "sonner";
 
 type Step = "choose" | "github" | "manual" | "fetching" | "ready";
 
@@ -47,8 +52,10 @@ export function CreateProjectDialog({
   onOpenChange,
 }: CreateProjectDialogProps) {
   const router = useRouter();
-  const createProject = useCreateProject();
   const { user } = useUser();
+  const createProject = useCreateProject();
+  const { allowed: githubCreditAllowed, used, limit } = useCheckGithubCredit();
+  const invalidateUsage = useInvalidateUsage();
 
   const [step, setStep] = useState<Step>("choose");
   const [githubUrl, setGithubUrl] = useState("");
@@ -103,6 +110,20 @@ export function CreateProjectDialog({
 
   const handleCreateFromGitHub = () => {
     if (!preview) return;
+
+    if (!githubCreditAllowed) {
+      toast.error(
+        `Monthly GitHub import limit reached (${used}/${limit}). Upgrade to continue.`,
+        {
+          action: {
+            label: "Upgrade",
+            onClick: () => router.push("/pricing"),
+          },
+        },
+      );
+      return;
+    }
+
     createProject.mutate(
       {
         name: preview.name,
@@ -121,6 +142,8 @@ export function CreateProjectDialog({
               githubUrl: githubUrl.trim(),
               enableWebhook,
             }),
+          }).then(() => {
+            invalidateUsage();
           });
         },
       },

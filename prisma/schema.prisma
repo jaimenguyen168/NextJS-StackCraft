@@ -17,6 +17,7 @@ model User {
 
   projects        Project[]
   collaboratingOn ProjectCollaborator[]
+  subscriptions   UserSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -198,4 +199,31 @@ enum CollaboratorRole {
   OWNER
   EDITOR
   VIEWER
+}
+
+model UserSubscription {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id])
+  plan            Plan    @default(FREE)
+  polarCustomerId String?
+
+  // Generation credits
+  manualCreditsUsed Int @default(0)
+  githubCreditsUsed Int @default(0)
+
+  // Edit token tracking (edits only, not generates)
+  editTokensUsed Int @default(0)
+
+  // Monthly reset
+  periodStart DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
 }

@@ -17,11 +17,11 @@ export const baseProcedure = t.procedure;
 export const publicProcedure = baseProcedure;
 
 export const authProcedure = baseProcedure.use(async ({ next }) => {
-  const { userId } = await auth();
+  const { userId, has } = await auth();
   if (!userId) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   return next({
-    ctx: { userId },
+    ctx: { userId, has },
   });
 });
