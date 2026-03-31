@@ -149,7 +149,6 @@ function FreeTierWidget() {
 
 function PaidTierWidget() {
   const { usage, planLabel } = useSubscriptions();
-
   if (!usage) return null;
 
   return (
