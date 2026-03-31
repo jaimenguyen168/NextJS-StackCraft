@@ -55,10 +55,9 @@ export async function POST(req: NextRequest) {
 
       // Create subscription record for new users
       if (eventType === "user.created") {
-        await prisma.userSubscription.upsert({
-          where: { userId: id },
-          create: { userId: id },
-          update: {},
+        await prisma.userSubscription.createMany({
+          data: [{ userId: id }],
+          skipDuplicates: true,
         });
       }
     }

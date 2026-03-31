@@ -202,11 +202,10 @@ enum CollaboratorRole {
 }
 
 model UserSubscription {
-  id              String  @id @default(cuid())
-  userId          String  @unique
-  user            User    @relation(fields: [userId], references: [id])
-  plan            Plan    @default(FREE)
-  polarCustomerId String?
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+  plan   Plan   @default(FREE)
 
   // Generation credits
   manualCreditsUsed Int @default(0)
