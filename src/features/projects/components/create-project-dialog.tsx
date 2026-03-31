@@ -112,14 +112,23 @@ export function CreateProjectDialog({
     if (!preview) return;
 
     if (!githubCreditAllowed) {
-      toast.error(
-        `Monthly GitHub import limit reached (${used}/${limit}). Upgrade to continue.`,
-        {
-          action: {
-            label: "Upgrade",
-            onClick: () => router.push("/pricing"),
-          },
-        },
+      onOpenChange(false);
+      toast(
+        <div className="flex flex-col gap-2 w-fit">
+          <p className="text-sm font-medium">
+            Monthly GitHub import limit reached ({used}/{limit}).
+          </p>
+          <Button
+            size="sm"
+            onClick={() => {
+              router.push("/pricing");
+              toast.dismiss();
+            }}
+            className="w-fit cursor-pointer"
+          >
+            Upgrade plan
+          </Button>
+        </div>,
       );
       return;
     }

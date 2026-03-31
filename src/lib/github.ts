@@ -11,6 +11,8 @@ const headers = {
 
 export type GitHubRepoData = {
   name: string;
+  isPrivate: boolean;
+  isAccessible: boolean;
   description: string | null;
   language: string | null;
   topics: string[];
@@ -292,6 +294,7 @@ export async function fetchGitHubRepo(
     topics: string[];
     stargazers_count: number;
     default_branch: string;
+    private: boolean;
   };
 
   type CommitResponse = {
@@ -389,6 +392,8 @@ export async function fetchGitHubRepo(
 
   return {
     name: meta?.name ?? repo,
+    isPrivate: meta?.private ?? false,
+    isAccessible: meta !== null,
     description: meta?.description ?? null,
     language: meta?.language ?? null,
     topics: meta?.topics ?? [],
