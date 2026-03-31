@@ -9,6 +9,8 @@ import {
 } from "@/lib/generation";
 import { prisma } from "@/lib/db";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
+import { getPlanFromClaims } from "@/features/usage/constants/plans";
+import { checkEditTokens, consumeEditTokens } from "@/features/usage/lib/usage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +106,7 @@ STRICT RULES:
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -268,6 +270,27 @@ Return the JSON object.`,
       });
     }
 
+    const plan = getPlanFromClaims(has);
+    const tokenCheck = await checkEditTokens(userId, plan);
+    if (!tokenCheck.allowed) {
+      await prisma.chatMessage.create({
+        data: {
+          chatId: chat.id,
+          role: "ASSISTANT",
+          content:
+            "Monthly edit token limit reached. Upgrade your plan to continue editing.",
+          snapshot: lastSnapshot ?? undefined,
+        },
+      });
+      return NextResponse.json(
+        {
+          error: "Monthly edit token limit reached. Upgrade to continue.",
+          code: "TOKEN_LIMIT",
+        },
+        { status: 402 },
+      );
+    }
+
     const edited: { id: string; title: string }[] = [];
     const created: { id: string; title: string }[] = [];
     const deleted: { id: string; title: string }[] = [];
@@ -416,6 +439,13 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
         deleted.push({ id: block.id, title: block.title });
       }),
     ]);
+
+    const estimatedTokens =
+      edited.length * 5000 +
+      created.length * 6000 +
+      parsed.createSections.reduce((acc, s) => acc + s.blocks.length * 6000, 0);
+
+    await consumeEditTokens(userId, plan, estimatedTokens);
 
     const parts = [];
     if (edited.length)

@@ -4,10 +4,15 @@ import { generateText } from "ai";
 import { model, ensureMermaidTitle } from "@/lib/generation";
 import { prisma } from "@/lib/db";
 import { getProjectSnapshot } from "@/trpc/routers/projects";
+import { getPlanFromClaims } from "@/features/usage/constants/plans";
+import {
+  checkManualCredit,
+  consumeManualCredit,
+} from "@/features/usage/lib/usage";
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -17,6 +22,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "projectId is required" },
         { status: 400 },
+      );
+    }
+
+    const plan = getPlanFromClaims(has);
+    const creditCheck = await checkManualCredit(userId, plan);
+    if (!creditCheck.allowed) {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "FAILED" },
+      });
+
+      return NextResponse.json(
+        {
+          error: `Monthly generation limit reached (${creditCheck.used}/${creditCheck.limit}). Upgrade to continue.`,
+          code: "MANUAL_CREDIT_LIMIT",
+        },
+        { status: 402 },
       );
     }
 
@@ -31,6 +53,8 @@ export async function POST(request: Request) {
       where: { id: projectId },
       data: { status: "GENERATING" },
     });
+
+    await consumeManualCredit(userId);
 
     const chat = await prisma.projectChat.create({ data: { projectId } });
     await prisma.chatMessage.create({

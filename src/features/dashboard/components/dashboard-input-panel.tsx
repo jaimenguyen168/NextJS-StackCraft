@@ -8,13 +8,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCreateProject } from "@/trpc/hooks/use-projects";
 import { useUser } from "@clerk/nextjs";
 import { createUsername } from "@/lib/utils";
+import {
+  useCheckManualCredit,
+  useInvalidateUsage,
+} from "@/trpc/hooks/use-usage";
+import { toast } from "sonner";
 
 const DashboardInputPanel = () => {
+  const { user } = useUser();
   const [text, setText] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const createProject = useCreateProject();
-  const { user } = useUser();
+  const { allowed, used, limit } = useCheckManualCredit();
+  const invalidateUsage = useInvalidateUsage();
 
   useEffect(() => {
     const syncPrompt = () => {
@@ -27,6 +34,19 @@ const DashboardInputPanel = () => {
   const handleGenerate = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    if (!allowed) {
+      toast.error(
+        `Monthly limit reached (${used}/${limit}). Upgrade to continue.`,
+        {
+          action: {
+            label: "Upgrade",
+            onClick: () => router.push("/pricing"),
+          },
+        },
+      );
+      return;
+    }
 
     createProject.mutate(
       {
@@ -41,6 +61,8 @@ const DashboardInputPanel = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ projectId: project.id }),
+          }).then(() => {
+            invalidateUsage();
           });
         },
       },

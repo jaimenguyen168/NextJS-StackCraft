@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   prefetch(trpc.projects.getAll.queryOptions());
+  prefetch(trpc.usage.getUsage.queryOptions());
 
   return (
     <HydrateClient>
