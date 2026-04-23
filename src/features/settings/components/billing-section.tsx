@@ -10,7 +10,6 @@ import { useSubscriptions } from "@/trpc/hooks/use-subscriptions";
 import { Button } from "@/components/ui/button";
 import {
   Loader2Icon,
-  ExternalLinkIcon,
   SparklesIcon,
   CreditCardIcon,
   AlertCircleIcon,
@@ -42,15 +41,15 @@ function PlanHeader() {
     );
   }
 
-  const activeItem = sub?.subscriptionItems?.find(
-    (i: { status: string }) => i.status === "active",
-  );
+  const activeItem = sub?.subscriptionItems?.find((i) => i.status === "active");
 
-  const interval = activeItem?.interval ?? "month";
+  const planPeriod = activeItem?.planPeriod ?? "month";
   const nextPayment = sub?.nextPayment;
 
-  // Clerk no longer provides canceledAt / endedAt reliably
-  const isCanceled = sub?.status === "canceled";
+  const isCanceled =
+    sub?.subscriptionItems?.some(
+      (i) => i.canceledAt !== null || i.status === "ended",
+    ) ?? false;
   const endDate = nextPayment?.date ?? null;
 
   return (
@@ -64,7 +63,7 @@ function PlanHeader() {
 
           {!isFree && (
             <p className="text-xs text-muted-foreground capitalize">
-              {interval === "annual" ? "Annual" : "Monthly"}
+              {planPeriod === "annual" ? "Annual" : "Monthly"}
             </p>
           )}
 
@@ -138,18 +137,17 @@ function PaymentHistory() {
   return (
     <div className="rounded-lg border border-border overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-2.5 bg-muted/40 border-b border-border">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2.5 bg-muted/40 border-b border-border">
         <p className="text-xs text-muted-foreground font-medium">Date</p>
         <p className="text-xs text-muted-foreground font-medium">Amount</p>
         <p className="text-xs text-muted-foreground font-medium">Status</p>
-        <p className="text-xs text-muted-foreground font-medium">Receipt</p>
       </div>
 
       {/* Rows */}
       {paid.map((payment) => (
         <div
           key={payment.id}
-          className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors"
+          className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors"
         >
           <p className="text-sm">
             {payment.paidAt
@@ -175,19 +173,6 @@ function PaymentHistory() {
           >
             {payment.status === "paid" ? "Paid" : payment.status}
           </span>
-
-          {payment.receiptUrl ? (
-            <a
-              href={payment.receiptUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              View <ExternalLinkIcon className="size-2.5" />
-            </a>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          )}
         </div>
       ))}
     </div>
@@ -204,7 +189,10 @@ function CancelSection() {
 
   if (isFree) return null;
 
-  const isCanceled = sub?.status === "canceled";
+  const isCanceled =
+    sub?.subscriptionItems?.some(
+      (i) => i.canceledAt !== null || i.status === "ended",
+    ) ?? false;
 
   if (isCanceled) {
     const endDate = sub?.nextPayment?.date;
