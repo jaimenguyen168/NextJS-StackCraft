@@ -30,6 +30,23 @@ export async function POST(request: Request) {
 
     const repo = await fetchGitHubRepo(parsed.owner, parsed.repo);
 
+    if (!repo.isAccessible) {
+      return NextResponse.json(
+        { error: "Repository not found or is private." },
+        { status: 404 },
+      );
+    }
+
+    if (repo.isPrivate) {
+      return NextResponse.json(
+        {
+          error:
+            "Private repositories are not supported. Only public repos can be imported.",
+        },
+        { status: 400 },
+      );
+    }
+
     return NextResponse.json({
       name: repo.name,
       description: repo.description,
