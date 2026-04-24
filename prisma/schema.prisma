@@ -171,9 +171,10 @@ model ChatMessage {
   chatId String
   chat   ProjectChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
-  role     MessageRole
-  content  String
-  snapshot Json?
+  role        MessageRole
+  content     String
+  snapshot    Json?
+  tokensUsed  Int         @default(0)
 
   createdAt DateTime @default(now())
 }

@@ -26,7 +26,7 @@ const ProjectsView = () => {
         }
       />
 
-      <div className="p-4 lg:p-6">
+      <div className="p-4 lg:p-6 container mx-auto">
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <p className="text-muted-foreground text-sm">No projects yet.</p>

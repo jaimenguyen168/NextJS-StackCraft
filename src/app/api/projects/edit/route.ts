@@ -464,6 +464,7 @@ Return ONLY the corrected raw Mermaid code. No fences, no explanation.`,
         role: "ASSISTANT",
         content: responseMessage,
         snapshot: { edited, created, deleted, projectState },
+        tokensUsed: estimatedTokens,
       },
     });
 

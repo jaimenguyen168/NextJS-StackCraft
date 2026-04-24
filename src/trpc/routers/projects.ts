@@ -209,9 +209,21 @@ export const projectsRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma.project.delete({
+        // Fetch all R2-stored images before deleting so we can clean up storage
+        const images = await prisma.projectImage.findMany({
+          where: { projectId: input.id, project: { userId: ctx.userId } },
+          select: { key: true },
+        });
+
+        // Delete the project — DB cascades handle all related records
+        const deleted = await prisma.project.delete({
           where: { id: input.id, userId: ctx.userId },
         });
+
+        // Clean up R2 files after DB delete succeeds
+        await Promise.allSettled(images.map((img) => deleteImage(img.key)));
+
+        return deleted;
       } catch (err) {
         console.error("DELETE ERROR:", err);
         throw err;

@@ -1,6 +1,6 @@
 "use client";
 
-import { ElementType, Suspense, useState } from "react";
+import { ElementType, Suspense, useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   HistoryIcon,
@@ -15,6 +15,7 @@ import { ProjectSettings } from "@/features/projects/components/project-settings
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSearchParams, useRouter } from "next/navigation";
 
 type Tab = "outline" | "history" | "settings";
 
@@ -28,6 +29,21 @@ export default function ProjectSidePanel() {
   const { projectId } = useProjectSnapshot();
   const [activeTab, setActiveTab] = useState<Tab>("outline");
   const [collapsed, setCollapsed] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Auto-open history tab when navigating from analytics with ?history=1
+  useEffect(() => {
+    if (searchParams.get("history") === "1") {
+      setCollapsed(false);
+      setActiveTab("history");
+      // Clean the param without losing messageId
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("history");
+      const qs = params.toString();
+      router.replace(`/projects/${projectId}${qs ? `?${qs}` : ""}`, { scroll: false });
+    }
+  }, [searchParams, projectId, router]);
 
   const handleScrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });

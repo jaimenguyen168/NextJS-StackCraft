@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { SparklesIcon, UserIcon, RotateCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import {
 } from "@/features/projects/contexts/project-snapshot-context";
 import { useGetChat, useRestoreProject } from "@/trpc/hooks/use-projects";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 
 interface Snapshot {
   edited?: { id: string; type: string; title: string }[];
@@ -21,6 +23,29 @@ export const ProjectHistory = ({ projectId }: { projectId: string }) => {
   const { data: messages } = useGetChat(projectId);
   const { snapshot: activeSnapshot, setSnapshot } = useProjectSnapshot();
   const restore = useRestoreProject(projectId);
+  const searchParams = useSearchParams();
+  const activatedRef = useRef(false);
+
+  // If navigated from analytics with ?messageId=, auto-activate that snapshot
+  useEffect(() => {
+    if (activatedRef.current || !messages.length) return;
+    const targetId = searchParams.get("messageId");
+    if (!targetId) return;
+    const target = messages.find((m) => m.id === targetId);
+    if (!target) return;
+    const snap = (target.snapshot as Snapshot | null)?.projectState;
+    if (snap) {
+      setSnapshot(snap);
+      activatedRef.current = true;
+      // Scroll the target row into view after a short paint delay
+      setTimeout(() => {
+        document.getElementById(`msg-${targetId}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 150);
+    }
+  }, [messages, searchParams, setSnapshot]);
 
   if (messages.length === 0) {
     return (
@@ -48,6 +73,7 @@ export const ProjectHistory = ({ projectId }: { projectId: string }) => {
           return (
             <div
               key={msg.id}
+              id={`msg-${msg.id}`}
               role="button"
               onClick={() => {
                 if (isActive || isLast) setSnapshot(null);
@@ -123,6 +149,7 @@ export const ProjectHistory = ({ projectId }: { projectId: string }) => {
           return (
             <div
               key={msg.id}
+              id={`msg-${msg.id}`}
               role="button"
               onClick={() => {
                 if (isUserActive || isLast) setSnapshot(null);
