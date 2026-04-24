@@ -117,6 +117,20 @@ export function useUpdateProjectGithubUrl(projectId: string) {
   );
 }
 
+export function useUpdateProjectGithubToken(projectId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.projects.updateGithubToken.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(
+          trpc.projects.getById.queryOptions({ id: projectId }),
+        );
+      },
+    }),
+  );
+}
+
 export function useUpdateProjectLogoUrl(projectId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
