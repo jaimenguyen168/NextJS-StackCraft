@@ -21,6 +21,7 @@ import { ProjectOutline } from "@/features/projects/components/project-outline";
 import { ProjectSettings } from "@/features/projects/components/project-settings";
 import { ProjectHistory } from "@/features/projects/components/project-history";
 import { useInvalidateProject, useProject } from "@/trpc/hooks/use-projects";
+import { useInvalidateUsage } from "@/trpc/hooks/use-usage";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -29,6 +30,7 @@ export default function ProjectChatPanel() {
   const { projectId } = useProjectSnapshot();
   const { project } = useProject(projectId);
   const invalidateProject = useInvalidateProject();
+  const invalidateUsage = useInvalidateUsage();
 
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -43,6 +45,13 @@ export default function ProjectChatPanel() {
     if (p) {
       setPrompt(decodeURIComponent(p));
       router.replace(`/projects/${projectId}`, { scroll: false });
+    }
+  }, [searchParams]);
+
+  // Auto-open history drawer on mobile when navigating from analytics with ?history=1
+  useEffect(() => {
+    if (searchParams.get("history") === "1") {
+      setHistoryOpen(true);
     }
   }, [searchParams]);
 
@@ -73,7 +82,7 @@ export default function ProjectChatPanel() {
       toast.success(data.message);
       setPrompt("");
 
-      await invalidateProject(projectId);
+      await Promise.all([invalidateProject(projectId), invalidateUsage()]);
     } catch {
       toast.error("Failed to send edit request");
     } finally {
