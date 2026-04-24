@@ -18,6 +18,10 @@ import {
   TriangleAlertIcon,
   RefreshCwIcon,
   RefreshCwOffIcon,
+  EyeIcon,
+  EyeOffIcon,
+  KeyIcon,
+  GitPullRequestIcon,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
@@ -29,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useUpdateProjectGithubUrl,
+  useUpdateProjectGithubToken,
   useUpdateProjectLogoUrl,
   useUpdateProjectTags,
   useUpdateProjectPublished,
@@ -43,6 +48,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectDeleteDialog } from "@/features/projects/components/project-delete-dialog";
 import { CollaboratorsField } from "@/features/projects/components/collaborators-field";
+import { GithubPushDialog } from "@/features/projects/components/github-push-dialog";
 import { toast } from "sonner";
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
@@ -69,19 +75,30 @@ function SettingsSection({
   );
 }
 
-// ─── GitHub URL + Webhook ─────────────────────────────────────────────────────
+// ─── GitHub URL + Webhook + Token ────────────────────────────────────────────
 
-function GithubUrlField({ value }: { value?: string | null }) {
+function GithubUrlField({
+  value,
+  token,
+}: {
+  value?: string | null;
+  token?: string | null;
+}) {
   const { projectId } = useProjectSnapshot();
   const [draft, setDraft] = useState(value ?? "");
+  const [tokenDraft, setTokenDraft] = useState(token ?? "");
+  const [showToken, setShowToken] = useState(false);
+  const [showTokenInstructions, setShowTokenInstructions] = useState(false);
   const [webhookRegistered, setWebhookRegistered] = useState<boolean | null>(
     null,
   );
   const [webhookLoading, setWebhookLoading] = useState(false);
   const [checkingWebhook, setCheckingWebhook] = useState(false);
   const update = useUpdateProjectGithubUrl(projectId);
+  const updateToken = useUpdateProjectGithubToken(projectId);
 
   const isDirty = draft !== (value ?? "");
+  const isTokenDirty = tokenDraft !== (token ?? "");
 
   // Check webhook status on mount if there's a saved URL
   useEffect(() => {
@@ -96,6 +113,13 @@ function GithubUrlField({ value }: { value?: string | null }) {
 
   const commit = () => {
     update.mutate({ id: projectId, githubUrl: draft || null });
+  };
+
+  const commitToken = () => {
+    updateToken.mutate(
+      { id: projectId, githubToken: tokenDraft.trim() || null },
+      { onSuccess: () => toast.success("GitHub token saved") },
+    );
   };
 
   const handleWebhookToggle = async () => {
@@ -201,6 +225,95 @@ function GithubUrlField({ value }: { value?: string | null }) {
           </Button>
         </div>
       )}
+
+      {/* GitHub token — for pushing docs back to the repo */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <KeyIcon className="size-3 text-muted-foreground" />
+            <p className="text-[11px] text-muted-foreground">
+              Personal Access Token{" "}
+              <span className="text-muted-foreground/60">(optional — needed to push docs)</span>
+            </p>
+          </div>
+          <button
+            onClick={() => setShowTokenInstructions((v) => !v)}
+            className="text-[11px] text-primary hover:underline"
+          >
+            {showTokenInstructions ? "Hide" : "How to get one"}
+          </button>
+        </div>
+
+        {showTokenInstructions && (
+          <div className="rounded-md bg-muted/40 border border-border/40 px-3 py-2 space-y-1 text-[11px] text-muted-foreground">
+            <p className="font-medium text-foreground">Generate a GitHub PAT:</p>
+            <ol className="list-decimal list-inside space-y-0.5">
+              <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens</a></li>
+              <li>Set expiration and select your repository under <strong>Repository access</strong></li>
+              <li>Under <strong>Permissions → Contents</strong>, select <strong>Read and write</strong></li>
+              <li>Under <strong>Permissions → Pull requests</strong>, select <strong>Read and write</strong></li>
+              <li>Click <strong>Generate token</strong> and paste it below</li>
+            </ol>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Input
+              type={showToken ? "text" : "password"}
+              value={tokenDraft}
+              onChange={(e) => setTokenDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") commitToken(); }}
+              className="text-[13px] h-8 bg-muted/40 border-border/60 focus-visible:ring-0 pr-8"
+              placeholder={token ? "Token saved — paste new one to replace" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowToken((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showToken ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+            </button>
+          </div>
+          {isTokenDirty && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={commitToken}
+              disabled={updateToken.isPending}
+            >
+              {updateToken.isPending ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <CheckIcon className="size-3.5" />
+              )}
+            </Button>
+          )}
+          {token && !isTokenDirty && (
+            <>
+              <div className="size-8 flex items-center justify-center shrink-0">
+                <CheckIcon className="size-3.5 text-green-500" />
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive"
+                title="Remove token"
+                onClick={() => {
+                  updateToken.mutate(
+                    { id: projectId, githubToken: null },
+                    { onSuccess: () => { setTokenDraft(""); toast.success("GitHub token removed"); } },
+                  );
+                }}
+                disabled={updateToken.isPending}
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -726,6 +839,7 @@ export function ProjectSettings() {
   const { project } = useProject(projectId);
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pushOpen, setPushOpen] = useState(false);
 
   if (!project) return null;
 
@@ -742,7 +856,17 @@ export function ProjectSettings() {
       <Separator />
 
       <SettingsSection icon={FaGithub} title="GitHub">
-        <GithubUrlField value={project.githubUrl} />
+        <GithubUrlField value={project.githubUrl} token={project.githubToken} />
+        {project.githubUrl && (
+          <button
+            onClick={() => setPushOpen(true)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/60 transition-colors text-[13px] text-muted-foreground hover:text-foreground mt-1"
+          >
+            <GitPullRequestIcon className="size-3.5 shrink-0" />
+            Push docs to GitHub
+          </button>
+        )}
+        <GithubPushDialog open={pushOpen} onOpenChange={setPushOpen} />
       </SettingsSection>
 
       <Separator />

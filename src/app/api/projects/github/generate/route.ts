@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     projectId = body.projectId;
-    const { githubUrl, enableWebhook = true } = body;
+    const { githubUrl, enableWebhook = true, githubToken = null } = body;
 
     if (!projectId || !githubUrl) {
       return NextResponse.json(
@@ -73,7 +73,11 @@ export async function POST(request: Request) {
 
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "GENERATING" },
+      data: {
+        status: "GENERATING",
+        githubUrl,
+        ...(githubToken ? { githubToken } : {}),
+      },
     });
 
     await consumeGithubCredit(userId);
@@ -213,6 +217,61 @@ export async function POST(request: Request) {
           order: 0,
         },
       });
+    }
+
+    // ── 8. Extract Features + Installation from README ────────────────────
+    if (repoData.readme) {
+      const readme = repoData.readme;
+      const installContent = extractReadmeSection(readme, [
+        "quick start", "installation", "getting started", "setup", "usage", "running"
+      ]);
+      const featuresContent = extractReadmeSection(readme, [
+        "features", "capabilities", "what it does", "highlights"
+      ]);
+
+      if (installContent || featuresContent) {
+        await sleep(1000);
+        const gettingStartedSection = await prisma.section.create({
+          data: { projectId, title: "Getting Started", order: sectionOrder++ },
+        });
+
+        let blockOrder = 0;
+
+        if (featuresContent) {
+          await sleep(1000);
+          const featuresDoc = await generateFeaturesAndNonFeatures(
+            featuresContent,
+            context,
+          );
+          await prisma.contentBlock.create({
+            data: {
+              projectId,
+              sectionId: gettingStartedSection.id,
+              kind: "DOCUMENT",
+              type: "features",
+              title: "Features & Non-Features",
+              content: featuresDoc,
+              body: null,
+              order: blockOrder++,
+            },
+          });
+        }
+
+        if (installContent) {
+          await prisma.contentBlock.create({
+            data: {
+              projectId,
+              sectionId: gettingStartedSection.id,
+              kind: "DOCUMENT",
+              type: "installation",
+              title: "Installation",
+              content: installContent.trim(),
+              body: null,
+              order: blockOrder++,
+            },
+          });
+        }
+      }
     }
 
     await prisma.project.update({
@@ -416,4 +475,72 @@ Return only a JSON array like: ["nextjs","typescript","saas"]`,
     if (Array.isArray(parsed)) return parsed.map(String).slice(0, 8);
   } catch {}
   return [];
+}
+
+// ─── README helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Extract a section from a README by matching heading keywords.
+ * Returns the section content (excluding the heading line) or null.
+ */
+export function extractReadmeSection(
+  readme: string,
+  keywords: string[],
+): string | null {
+  const lines = readme.split("\n");
+  let capturing = false;
+  let depth = 0;
+  const captured: string[] = [];
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const title = headingMatch[2].toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+      const matches = keywords.some((kw) => title.includes(kw));
+
+      if (capturing) {
+        // Stop if we hit a heading of same or higher level
+        if (level <= depth) break;
+      }
+
+      if (matches) {
+        capturing = true;
+        depth = level;
+        continue; // skip the heading itself
+      }
+    }
+
+    if (capturing) captured.push(line);
+  }
+
+  const content = captured.join("\n").trim();
+  return content.length > 30 ? content : null;
+}
+
+async function generateFeaturesAndNonFeatures(
+  featuresContent: string,
+  context: string,
+): Promise<string> {
+  const { text } = await generateText({
+    model,
+    system:
+      "You are a product manager writing clear, honest documentation. Use ## headings and bullet points.",
+    prompt: `Based on the README features section and source code context below, write a concise "Features & Non-Features" document.
+
+## Features
+List 5-8 real, specific features this project provides. Use bullet points starting with a bold feature name followed by a dash and a one-sentence description. Example:
+- **Real-time sync** – Changes are reflected instantly across all connected clients via WebSockets.
+
+## Non-Features / Out of Scope
+List 3-5 things this project explicitly does NOT do or support. Be honest and specific. Example:
+- **Mobile app** – There is no native iOS or Android client; the app is web-only.
+
+README features section:
+${featuresContent.slice(0, 2000)}
+
+Source code context (for accuracy):
+${context.slice(0, 1000)}`,
+  });
+  return text.trim();
 }

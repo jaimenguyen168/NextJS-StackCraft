@@ -7,6 +7,9 @@ import {
   FileTextIcon,
   LockIcon,
   RefreshCwIcon,
+  KeyIcon,
+  EyeIcon,
+  EyeOffIcon,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
@@ -62,6 +65,9 @@ export function CreateProjectDialog({
   const [urlError, setUrlError] = useState("");
   const [preview, setPreview] = useState<RepoPreview | null>(null);
   const [enableWebhook, setEnableWebhook] = useState(true);
+  const [githubToken, setGithubToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [showTokenInstructions, setShowTokenInstructions] = useState(false);
 
   const [manualName, setManualName] = useState("");
   const [manualDescription, setManualDescription] = useState("");
@@ -72,6 +78,9 @@ export function CreateProjectDialog({
     setUrlError("");
     setPreview(null);
     setEnableWebhook(true);
+    setGithubToken("");
+    setShowToken(false);
+    setShowTokenInstructions(false);
     setManualName("");
     setManualDescription("");
   };
@@ -150,6 +159,7 @@ export function CreateProjectDialog({
               projectId: project.id,
               githubUrl: githubUrl.trim(),
               enableWebhook,
+              githubToken: githubToken.trim() || null,
             }),
           }).then(() => {
             invalidateUsage();
@@ -333,6 +343,55 @@ export function CreateProjectDialog({
                     {preview.routeCount > 1 ? "s" : ""} detected
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Optional GitHub token */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <KeyIcon className="size-3 text-muted-foreground" />
+                  <Label className="text-[13px] font-normal text-muted-foreground">
+                    GitHub Token{" "}
+                    <span className="text-muted-foreground/60">(optional)</span>
+                  </Label>
+                </div>
+                <button
+                  onClick={() => setShowTokenInstructions((v) => !v)}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  {showTokenInstructions ? "Hide" : "Why & how"}
+                </button>
+              </div>
+
+              {showTokenInstructions && (
+                <div className="rounded-md bg-muted/40 border border-border/40 px-3 py-2 space-y-1 text-[11px] text-muted-foreground">
+                  <p className="text-foreground font-medium">Needed to push docs back to your repo.</p>
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">GitHub → Settings → Developer settings → Fine-grained tokens</a></li>
+                    <li>Under <strong>Repository access</strong>, select this repo</li>
+                    <li>Under <strong>Permissions → Contents</strong>, select <strong>Read and write</strong></li>
+                    <li>Under <strong>Permissions → Pull requests</strong>, select <strong>Read and write</strong></li>
+                    <li>Generate and paste the token below</li>
+                  </ol>
+                </div>
+              )}
+
+              <div className="relative">
+                <Input
+                  type={showToken ? "text" : "password"}
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  className="focus-visible:ring-0 pr-8 text-[13px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showToken ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+                </button>
               </div>
             </div>
 

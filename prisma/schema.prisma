@@ -34,6 +34,7 @@ model Project {
 
   // Metadata
   githubUrl      String?
+  githubToken    String? // optional PAT for pushing docs to the repo
   logoUrl        String?
   mainColorLight String?
   mainColorDark  String?

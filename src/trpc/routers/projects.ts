@@ -305,6 +305,15 @@ export const projectsRouter = createTRPCRouter({
       }),
     ),
 
+  updateGithubToken: authProcedure
+    .input(z.object({ id: z.string(), githubToken: z.string().nullable() }))
+    .mutation(({ ctx, input }) =>
+      prisma.project.update({
+        where: { id: input.id, userId: ctx.userId },
+        data: { githubToken: input.githubToken },
+      }),
+    ),
+
   updateLogoUrl: authProcedure
     .input(z.object({ id: z.string(), logoUrl: z.string().nullable() }))
     .mutation(({ ctx, input }) =>
