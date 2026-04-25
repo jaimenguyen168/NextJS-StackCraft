@@ -13,6 +13,7 @@ export const env = createEnv({
     R2_PUBLIC_URL: z.string().min(1),
     GITHUB_TOKEN: z.string().optional(),
     GITHUB_WEBHOOK_SECRET: z.string().min(1),
+    ENCRYPTION_KEY: z.string().length(64), // 32 bytes as hex
   },
   experimental__runtimeEnv: {},
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
