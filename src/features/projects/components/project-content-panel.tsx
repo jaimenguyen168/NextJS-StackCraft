@@ -8,7 +8,6 @@ import MermaidDiagram from "@/components/mermaid-diagram";
 import { useProjectSnapshot } from "@/features/projects/contexts/project-snapshot-context";
 import { useProject } from "@/trpc/hooks/use-projects";
 import "@scalar/api-reference-react/style.css";
-import { cn } from "@/lib/utils";
 
 const ApiReferenceReact = dynamic(
   () => import("@scalar/api-reference-react").then((m) => m.ApiReferenceReact),
@@ -139,26 +138,27 @@ export default function ProjectContentPanel() {
     <div className="absolute inset-0 overflow-y-auto">
       {/* Cover */}
       <div
-        className={cn(
-          "relative flex h-48 w-full items-center justify-center shrink-0",
-          !displayProject.mainColorLight &&
-            !displayProject.mainColorDark &&
-            "bg-background",
-        )}
-        style={
-          displayProject.mainColorLight || displayProject.mainColorDark
-            ? {
-                backgroundColor:
-                  displayProject.mainColorLight ??
-                  displayProject.mainColorDark ??
-                  undefined,
-              }
-            : undefined
-        }
+        className="relative flex h-48 w-full items-center justify-center shrink-0"
+        style={{
+          backgroundColor:
+            displayProject.mainColorLight ??
+            displayProject.mainColorDark ??
+            "#35a85a",
+        }}
       >
-        <h1 className="text-2xl font-bold text-white drop-shadow-sm px-6 text-center">
-          {displayProject.name}
-        </h1>
+        <div className="flex flex-col items-center gap-3 px-6">
+          {displayProject.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={displayProject.logoUrl}
+              alt={displayProject.name}
+              className="size-14 rounded-xl object-contain shrink-0 drop-shadow-md"
+            />
+          )}
+          <h1 className="text-2xl font-bold text-white drop-shadow-sm text-center">
+            {displayProject.name}
+          </h1>
+        </div>
       </div>
 
       <div className="p-4 lg:p-6 space-y-8">

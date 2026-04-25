@@ -5,8 +5,9 @@ import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, CameraIcon, CheckIcon } from "lucide-react";
+import { Loader2Icon, CameraIcon, CheckIcon, EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { useMe, useSetOpenaiKey, useRemoveOpenaiKey } from "@/trpc/hooks/use-users";
 
 // ─── Row wrapper ──────────────────────────────────────────────────────────────
 
@@ -200,12 +201,75 @@ function EmailField() {
   );
 }
 
+// ─── OpenAI key field ─────────────────────────────────────────────────────────
+
+function OpenAIKeyField({ hasKey }: { hasKey: boolean }) {
+  const [draft, setDraft] = useState("");
+  const [show, setShow] = useState(false);
+  const setKey = useSetOpenaiKey();
+  const removeKey = useRemoveOpenaiKey();
+
+  const save = () => {
+    if (!draft.trim()) return;
+    setKey.mutate({ key: draft.trim() }, { onSuccess: () => { toast.success("OpenAI key saved"); setDraft(""); } });
+  };
+
+  return (
+    <div className="space-y-2 max-w-sm">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Input
+            type={show ? "text" : "password"}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+            className="h-9 pr-9 focus-visible:ring-0"
+            placeholder={hasKey ? "Key saved — paste new one to replace" : "sk-..."}
+          />
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {show ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+          </button>
+        </div>
+        {draft.trim() && (
+          <Button size="sm" onClick={save} disabled={setKey.isPending}>
+            {setKey.isPending ? <Loader2Icon className="size-3 animate-spin" /> : <CheckIcon className="size-3" />}
+            Save
+          </Button>
+        )}
+        {hasKey && !draft.trim() && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => removeKey.mutate(undefined, { onSuccess: () => toast.success("OpenAI key removed") })}
+            disabled={removeKey.isPending}
+          >
+            {removeKey.isPending ? <Loader2Icon className="size-3 animate-spin" /> : <Trash2Icon className="size-3" />}
+            Remove
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {hasKey ? "✓ Key is saved and encrypted." : "Used for logo generation. Encrypted at rest, never shared."}{" "}
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
+          Get a key →
+        </a>
+      </p>
+    </div>
+  );
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function GeneralSection() {
-  const { isLoaded, user } = useUser();
+  const { isLoaded, user: clerkUser } = useUser();
+  const { user } = useMe();
 
-  if (!isLoaded || !user) return null;
+  if (!isLoaded || !clerkUser) return null;
 
   return (
     <div className="space-y-1">
@@ -229,6 +293,13 @@ export function GeneralSection() {
 
       <SettingRow label="Email" description="Your primary email address.">
         <EmailField />
+      </SettingRow>
+
+      <SettingRow
+        label="OpenAI key"
+        description="Used for AI logo generation (~$0.04/image)."
+      >
+        <OpenAIKeyField hasKey={user?.hasOpenaiKey ?? false} />
       </SettingRow>
     </div>
   );

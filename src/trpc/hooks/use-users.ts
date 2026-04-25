@@ -1,7 +1,7 @@
 "use client";
 
 import { useTRPC } from "@/trpc/client";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function useSearchUsers(query: string) {
   const trpc = useTRPC();
@@ -18,3 +18,24 @@ export function useMe() {
   );
   return { user, ...rest };
 }
+
+export function useSetOpenaiKey() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.users.setOpenaiKey.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.users.getMe.queryOptions()),
+    }),
+  );
+}
+
+export function useRemoveOpenaiKey() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.users.removeOpenaiKey.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.users.getMe.queryOptions()),
+    }),
+  );
+}
+

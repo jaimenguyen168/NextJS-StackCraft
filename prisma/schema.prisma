@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id        String  @id
-  username  String  @unique
-  name      String?
-  email     String?
-  imageUrl  String?
-  githubUrl String?
+  id           String  @id
+  username     String  @unique
+  name         String?
+  email        String?
+  imageUrl     String?
+  githubUrl    String?
+  openaiApiKey   String?
 
   projects        Project[]
   collaboratingOn ProjectCollaborator[]
@@ -172,10 +173,10 @@ model ChatMessage {
   chatId String
   chat   ProjectChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
-  role        MessageRole
-  content     String
-  snapshot    Json?
-  tokensUsed  Int         @default(0)
+  role       MessageRole
+  content    String
+  snapshot   Json?
+  tokensUsed Int         @default(0)
 
   createdAt DateTime @default(now())
 }

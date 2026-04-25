@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, authProcedure } from "@/trpc/init";
 import { prisma } from "@/lib/db";
+import { encrypt } from "@/lib/encryption";
 
 export const usersRouter = createTRPCRouter({
   search: authProcedure
@@ -17,18 +18,12 @@ export const usersRouter = createTRPCRouter({
           NOT: { id: ctx.userId },
         },
         take: 8,
-        select: {
-          id: true,
-          username: true,
-          name: true,
-          imageUrl: true,
-          email: true,
-        },
+        select: { id: true, username: true, name: true, imageUrl: true, email: true },
       });
     }),
 
   getMe: authProcedure.query(async ({ ctx }) => {
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: ctx.userId },
       select: {
         id: true,
@@ -37,8 +32,34 @@ export const usersRouter = createTRPCRouter({
         email: true,
         imageUrl: true,
         githubUrl: true,
+        openaiApiKey: true,
         createdAt: true,
       },
     });
+    if (!user) return null;
+    // Never return actual key — only whether it's set
+    return {
+      ...user,
+      openaiApiKey: undefined,
+      hasOpenaiKey: !!user.openaiApiKey,
+    };
+  }),
+
+  setOpenaiKey: authProcedure
+    .input(z.object({ key: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.user.update({
+        where: { id: ctx.userId },
+        data: { openaiApiKey: encrypt(input.key.trim()) },
+      });
+      return { ok: true };
+    }),
+
+  removeOpenaiKey: authProcedure.mutation(async ({ ctx }) => {
+    await prisma.user.update({
+      where: { id: ctx.userId },
+      data: { openaiApiKey: null },
+    });
+    return { ok: true };
   }),
 });
