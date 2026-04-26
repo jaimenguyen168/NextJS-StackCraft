@@ -58,8 +58,8 @@ function NavSection({ label, items, pathname }: NavSectionProps) {
               <SidebarMenuButton
                 asChild
                 isActive={
-                  item.url === "/"
-                    ? pathname === "/"
+                  item.url === "/dashboard"
+                    ? pathname === "/dashboard"
                     : pathname.startsWith(item.url)
                 }
                 onClick={() => setOpenMobile(false)}
@@ -88,7 +88,7 @@ export function DashboardSidebar() {
   const { isMobile } = useSidebar();
 
   const mainItems: MenuItem[] = [
-    { title: "Dashboard", url: "/", icon: HomeIcon },
+    { title: "Dashboard", url: "/dashboard", icon: HomeIcon },
     { title: "Projects", url: "/projects", icon: FolderOpenIcon },
     { title: "Analytics", url: "/analytics", icon: BarChart2Icon },
   ];
@@ -102,16 +102,18 @@ export function DashboardSidebar() {
     <Sidebar collapsible="icon">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-        <Image
-          src="/logo.svg"
-          alt="StackCraft"
-          width={22}
-          height={22}
-          className="rounded-md shrink-0"
-        />
-        <span className="group-data-[collapsible=icon]:hidden font-semibold text-[15px] tracking-tight text-foreground">
-          StackCraft
-        </span>
+        <Link href="/" className="flex items-center gap-2.5">
+          <Image
+            src="/logo.svg"
+            alt="StackCraft"
+            width={22}
+            height={22}
+            className="rounded-md shrink-0"
+          />
+          <span className="group-data-[collapsible=icon]:hidden font-semibold text-[15px] tracking-tight text-foreground">
+            StackCraft
+          </span>
+        </Link>
         {isMobile && <SidebarTrigger className="ml-auto" />}
       </div>
 
