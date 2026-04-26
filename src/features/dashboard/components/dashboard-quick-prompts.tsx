@@ -33,7 +33,7 @@ const QuickPromptCard = ({
   const router = useRouter();
 
   const handleClick = () => {
-    router.push(`/?prompt=${encodeURIComponent(prompt)}`);
+    router.push(`/dashboard/?prompt=${encodeURIComponent(prompt)}`);
   };
 
   return (

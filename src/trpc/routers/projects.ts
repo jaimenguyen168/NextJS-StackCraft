@@ -181,6 +181,27 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
+  getPublished: publicProcedure
+    .input(z.object({ limit: z.number().optional().default(6) }))
+    .query(async ({ input }) => {
+      return prisma.project.findMany({
+        where: { published: true },
+        orderBy: { updatedAt: "desc" },
+        take: input.limit,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          slug: true,
+          username: true,
+          logoUrl: true,
+          mainColorLight: true,
+          mainColorDark: true,
+          tags: true,
+        },
+      });
+    }),
+
   getBySlug: publicProcedure
     .input(z.object({ username: z.string(), slug: z.string() }))
     .query(async ({ input }) => {
