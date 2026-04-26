@@ -24,7 +24,7 @@ import {
   FolderOpenIcon,
   BarChart2Icon,
   SettingsIcon,
-  HeadphonesIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { UsageContainer } from "@/features/usage/components/usage-container";
@@ -95,7 +95,7 @@ export function DashboardSidebar() {
 
   const otherItems: MenuItem[] = [
     { title: "Settings", url: "/settings", icon: SettingsIcon },
-    { title: "Help & Support", url: "/support", icon: HeadphonesIcon },
+    { title: "Feedback", url: "/feedback", icon: MessageSquareIcon },
   ];
 
   return (
