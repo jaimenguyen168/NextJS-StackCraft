@@ -1,6 +1,8 @@
 # NextJS-StackCraft
 
-> This Next.js project uses TypeScript, Prisma, and tRPC to build a full-stack application with AI-powered features via Groq and OpenAI integrations.
+<img width="1200" height="600" alt="stackcraft" src="https://github.com/user-attachments/assets/592afbca-d076-467e-bf5a-3234f551f3b2" />
+
+<br />
 
 <div align="center">
   <img src="https://img.shields.io/badge/-Next.js-black?style=for-the-badge&logoColor=white&logo=nextdotjs&color=000000" alt="Next.js" />
@@ -9,126 +11,46 @@
   <img src="https://img.shields.io/badge/-tRPC-black?style=for-the-badge&logoColor=white&logo=trpc&color=2596BE" alt="tRPC" />
   <img src="https://img.shields.io/badge/-Prisma-black?style=for-the-badge&logoColor=white&logo=prisma&color=2D3748" alt="Prisma" />
   <img src="https://img.shields.io/badge/-Tailwind_CSS-black?style=for-the-badge&logoColor=white&logo=tailwindcss&color=06B6D4" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/-OpenAI-black?style=for-the-badge&logoColor=white&logo=openai&color=412991" alt="OpenAI" />
+  <img src="https://img.shields.io/badge/-Clerk-black?style=for-the-badge&logoColor=white&logo=clerk&color=6C47FF" alt="Clerk" />
+  <img src="https://img.shields.io/badge/-shadcn/ui-black?style=for-the-badge&logoColor=white&logo=shadcnui&color=000000" alt="shadcn/ui" />
 </div>
 
 ## 📋 <a name="table-of-contents">Table of Contents</a>
 
-1. 📋 [Requirements Specification](#requirements-specification)
-2. 📌 [Getting Started](#getting-started)
+1. 📋 [Project Overview](#project-overview)
+2. 🔋 [Key Features](#key-features)
+3. 📌 [Getting Started](#getting-started)
 
 ---
 
-## <a name="requirements-specification">📋 Requirements Specification</a>
+## <a name="project-overview">📋 Project Overview</a>
 
-### System Overview
+StackCraft is an innovative platform designed to revolutionize the way developers and project teams create, document, and manage their projects. It serves as an all-in-one solution for project ideation, planning, and execution, catering to the needs of both individual developers and teams. By integrating cutting-edge AI technology, StackCraft enables users to generate comprehensive project blueprints, including technical specifications, architecture diagrams, and project timelines, in a matter of seconds. The platform aims to streamline the project development process, enhance collaboration, and reduce the time and effort required to bring projects to life.
 
-## Purpose & Scope
+---
 
-StackCraft is an AI-powered project planning and documentation tool. It helps users generate technical blueprints for their project ideas, including schema, architecture, timeline, and more. The system is designed for individuals who want to quickly and easily create a solid project plan.
+## <a name="key-features">🔋 Key Features</a>
 
-The system explicitly does not cover:
+- 👉 **AI-Powered Project Generation**: generate comprehensive project blueprints, technical specs, and architecture diagrams in seconds <br />
+- 👉 **AI Chat Assistant**: chat with AI to modify, add content, and refine your project documentation interactively <br />
+- 👉 **Diagram Generation**: auto-generate architecture and system diagrams from your project details <br />
+- 👉 **GitHub Repo Import**: generate full project documentation by reading directly from a GitHub repository <br />
+- 👉 **Push Docs to GitHub**: publish your documentation or architecture directly to a GitHub README <br />
+- 👉 **Publish Documentation**: share and publish your project docs to a public-facing page <br />
+- 👉 **User Authentication**: secure login and registration using Clerk <br />
+- 👉 **Project Management**: create, edit, and manage your projects and documentation <br />
+- 👉 **GitHub Integration**: connect and sync your projects with GitHub repositories <br />
+- 👉 **Collaboration**: invite contributors to view and suggest changes to project plans <br />
+- 👉 **Analytics & Dashboard**: track and monitor your projects from a centralized dashboard <br />
+- 👉 **Dark & Light Mode**: fully themed UI with support for both dark and light modes <br />
 
-* Project execution or implementation
-* Team collaboration or project management
-* Extensive customization or configuration
+## 🚀 Upcoming Features
 
-## System Goals
-
-The system aims to achieve the following specific, measurable goals:
-
-1. **Generate a comprehensive project plan**: The system should be able to generate a detailed project plan, including schema, architecture, timeline, and other relevant information.
-2. **Provide accurate and relevant suggestions**: The system should provide accurate and relevant suggestions for the project plan based on the user's input.
-3. **Save users time and effort**: The system should save users time and effort in creating a project plan.
-4. **Improve project planning quality**: The system should improve the quality of project planning by providing a standardized and comprehensive approach.
-
-## Key Features
-
-The system has the following key features:
-
-👉 **Project Plan Generation**: The system generates a comprehensive project plan based on user input.
-👉 **AI-powered Suggestions**: The system provides accurate and relevant suggestions for the project plan.
-👉 **Customizable**: The system allows users to customize the project plan to some extent.
-👉 **Collaboration**: The system enables users to collaborate on project plans.
-
-## User Roles
-
-The system has the following user roles:
-
-👉 **Project Owner**: The project owner is the user who creates and owns the project plan. They can edit and customize the plan.
-👉 **Contributor**: The contributor is a user who is invited to collaborate on a project plan. They can view and suggest changes to the plan.
-
-## Assumptions & Constraints
-
-The system is built on the following assumptions:
-
-* The user has a basic understanding of project planning and technical concepts.
-* The system has access to relevant data and information to generate accurate project plans.
-
-The system has the following constraints:
-
-👉 **Data Quality**: The system is only as good as the data it is trained on. Poor data quality can lead to inaccurate project plans.
-👉 **Limited Customization**: The system has limited customization options to ensure consistency and accuracy.
-
-## Success Criteria
-
-The system will be considered successful if it achieves the following measurable outcomes:
-
-1. **User Adoption**: A significant number of users adopt the system and create project plans.
-2. **Project Plan Quality**: The quality of project plans generated by the system is high, as measured by user feedback and ratings.
-3. **Time Savings**: Users report saving a significant amount of time and effort in creating project plans using the system.
-4. **Customer Satisfaction**: Customers are satisfied with the system, as measured by surveys and feedback.
-
-### Architecture Diagram
-
-The provided codebase appears to be a Next.js application with a complex architecture. 
-
-The tech stack uses TypeScript, with main dependencies like `@ai-sdk/groq`, `@ai-sdk/openai`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@base-ui/react`, `@clerk/nextjs`, `@prisma/adapter-pg`, `@scalar/api-reference-react`, `@tanstack/react-query`, `@trpc/client`, `@trpc/server`, `@trpc/tanstack-react-query`, `ai`, `class-variance-authority`, `client-only`, `clsx`, `cmdk`, `date-fns`, `embla-carousel-react`, `input-otp`, `lucide-react`, `mermaid`, `next`, `next-themes`, `prettier`, `radix-ui`, `react`, `react-day-picker`, `react-dom`, `react-error-boundary`, `react-icons`, `react-markdown`, `react-resizable-panels`, `recharts`, `remark-gfm`, `server-only`, `shadcn`, `sonner`, `superjson`, `tailwind-merge`, `tw-animate-css`, `vaul`, and `zod`. 
-
-The project seems to utilize a combination of server-side rendering and static site generation. The `next.config.ts` file defines the configuration for the Next.js application, including settings for development indicators, internationalized routing, and image optimization.
-
-The application's routing structure is organized into different sections, such as `(auth)`, `(dashboard)`, `(marketing)`, and API routes. The `(dashboard)` section seems to be protected by authentication and provides features like project management, analytics, and settings. The `(marketing)` section appears to be publicly accessible and serves as the main entry point for the application.
-
-The API routes are used for various tasks, such as generating projects, handling GitHub integration, and managing feedback. These routes interact with the database using Prisma and perform tasks like creating, reading, updating, and deleting data.
-
-The application's UI components are built using React and utilize libraries like Radix UI, Shadcn, and Tailwind CSS for styling. The `theme-provider.tsx` file sets up the theme for the application, and the `theme-toggle.tsx` file provides a toggle for switching between light and dark modes.
-
-The project also uses various AI-related libraries and APIs, such as OpenAI and Groq, for generating content and providing features like project suggestions and auto-completion.
-
-The database schema, defined in `schema.prisma`, includes models for users, projects, and other entities. The schema uses Prisma's data modeling language to define the relationships between different entities.
-
-The file structure is organized into different sections, including `app`, `components`, `lib`, and `trpc`. The `app` directory contains the main application code, including pages, API routes, and layout components. The `components` directory includes reusable UI components, and the `lib` directory contains utility functions and libraries used throughout the application.
-
-The `tsconfig.json` file defines the TypeScript configuration for the project, including settings for the target JavaScript version, module resolution, and strictness.
-
-Overall, the provided codebase appears to be a complex Next.js application with a robust architecture, utilizing various technologies and libraries to provide a feature-rich user experience. 
-
-The tech stack consists of both backend and frontend components. 
-The backend consists of Next.js API routes, Prisma, and PostgreSQL. 
-The frontend consists of Next.js pages, React components, and various libraries for styling and UI components.
-
-The application's architecture can be divided into several layers:
-- The database layer, which uses Prisma to interact with the PostgreSQL database.
-- The API layer, which uses Next.js API routes to handle requests and interact with the database.
-- The business logic layer, which is distributed across the API routes and the React components.
-- The presentation layer, which consists of the React components and the UI libraries.
-
-This architecture allows for a scalable and maintainable application, with a clear separation of concerns between the different layers. 
-
-The use of TypeScript throughout the application provides additional safety and maintainability features, such as type checking and auto-completion.
-
-The application's use of AI-related libraries and APIs provides features like project suggestions and auto-completion, making it more user-friendly and efficient. 
-
-The deployment process for the application is not explicitly defined in the provided codebase, but it can be inferred that the application is designed to be deployed on a cloud platform, such as Vercel, given the presence of Vercel-specific configuration files.
-
-The provided codebase demonstrates a well-structured and maintainable architecture, making it suitable for large-scale applications with complex requirements. 
-
-The architectural explanation consists of a combination of server-side rendering and static site generation. Next.js handles routing. Prisma is used for the database. React is used for frontend components. Tailwind CSS and Radix UI are used for styling. TypeScript provides type safety.
-
-The AI-related libraries are used for features such as auto-generation of project content, and OpenAI integration.
-
-The file structure consists of app directory for Next.js pages and API routes. components directory for reusable React components. lib directory for utility functions.
-
-Overall, the codebase appears to be well-organized, scalable, and maintainable, with a clear separation of concerns between the different layers.
+- 👉 **Auto-Update Docs on Merge**: automatically update documentation when new changes are merged into GitHub <br />
+- 👉 **Community Doc Channels**: get feedback and suggestions from other users on your documentation <br />
+- 👉 **Image & Icon Generation**: generate custom images and icons for your project docs <br />
+- 👉 **Customizable Themes**: personalize the look and feel of your documentation with custom themes <br />
 
 ---
 
@@ -136,10 +58,82 @@ Overall, the codebase appears to be well-organized, scalable, and maintainable, 
 
 ### Installation
 
-First, run the development server:
+**Clone the repository**
 
 ```bash
-npm run dev
+git clone https://github.com/jaimenguyen168/NextJS-StackCraft.git
+cd NextJS-StackCraft
+```
+
+**Install dependencies**
+
+```bash
+pnpm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file in the root of the project and add the following:
+
+```env
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+CLERK_WEBHOOK_SIGNING_SECRET=
+
+# App URL
+APP_URL=http://localhost:3000
+
+# Prisma
+DATABASE_URL=
+
+# Groq
+GROQ_API_KEY=
+
+# R2
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+R2_PUBLIC_URL=
+R2_TOKEN=
+
+# Modal
+STACKCRAFT_LOGO_URL=
+STACKCRAFT_LOGO_API_KEY=
+HUGGING_FACE_HUB_TOKEN=
+
+# GitHub
+GITHUB_TOKEN=
+GITHUB_WEBHOOK_SECRET=
+GITHUB_FEEDBACK_TOKEN=
+
+# Encryption
+ENCRYPTION_KEY=
+```
+
+### Running the App
+
+**Run the development server**
+
+```bash
+pnpm dev
+```
+
+**Run Prisma Studio**
+
+```bash
+pnpm dlx prisma studio
+```
+
+**Push Prisma schema to database**
+
+```bash
+pnpm dlx prisma db push
 ```
 
 ---
